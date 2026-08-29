@@ -237,6 +237,57 @@ async function runAllUnitTests() {
   const pipelineFindings = await evaluateRepositoryContradictionsAsync(mockArtifacts, claims);
   assert(pipelineFindings.length >= 1, 'Deterministic matchers and fallbacks return findings when LLM is unavailable');
 
+  // SECTION 5: GitHub Downloader, URL Parsing, Safety Limits & Cleanup
+  console.log(`[5. GitHub Downloader & URL Parsing Tests]`);
+
+  const { parseGitHubUrl, cleanupTempDir, extractZipBufferToDir } = require('../engine/githubDownloader');
+  const fs = require('fs');
+  const os = require('os');
+
+  // Test 5.1: Valid URL Parsing
+  const validUrl1 = parseGitHubUrl('https://github.com/facebook/react');
+  assert(validUrl1.owner === 'facebook' && validUrl1.repo === 'react' && validUrl1.canonicalUrl === 'https://github.com/facebook/react', 'Standard https github URL parsed');
+
+  const validUrl2 = parseGitHubUrl('github.com/vercel/next.js/');
+  assert(validUrl2.owner === 'vercel' && validUrl2.repo === 'next.js' && validUrl2.canonicalUrl === 'https://github.com/vercel/next.js', 'Domain-only URL with trailing slash parsed');
+
+  const validUrl3 = parseGitHubUrl('https://github.com/octocat/Hello-World.git');
+  assert(validUrl3.owner === 'octocat' && validUrl3.repo === 'Hello-World', '.git suffix stripped');
+
+  // Test 5.2: Invalid URL Rejection
+  let rejectedGitlab = false;
+  try {
+    parseGitHubUrl('https://gitlab.com/owner/repo');
+  } catch {
+    rejectedGitlab = true;
+  }
+  assert(rejectedGitlab, 'Non-GitHub URL rejected');
+
+  let rejectedMalformed = false;
+  try {
+    parseGitHubUrl('not-a-url');
+  } catch {
+    rejectedMalformed = true;
+  }
+  assert(rejectedMalformed, 'Malformed string rejected');
+
+  let rejectedPathTraversal = false;
+  try {
+    parseGitHubUrl('https://github.com/../repo');
+  } catch {
+    rejectedPathTraversal = true;
+  }
+  assert(rejectedPathTraversal, 'Path traversal in URL rejected');
+
+  // Test 5.3: Temp Directory Creation and Cleanup
+  const testTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ccd-test-cleanup-'));
+  const testFilePath = path.join(testTempDir, 'sample.txt');
+  fs.writeFileSync(testFilePath, 'temp content');
+  assert(fs.existsSync(testTempDir) && fs.existsSync(testFilePath), 'Temp directory created for testing');
+
+  cleanupTempDir(testTempDir);
+  assert(!fs.existsSync(testTempDir), 'cleanupTempDir completely removes temp directory');
+
   console.log(`\n=======================================================`);
   console.log(` TEST SUMMARY: ${passedTests}/${totalTests} tests passed`);
   console.log(`=======================================================`);

@@ -3,25 +3,20 @@ import { extractArtifactInformation } from './extractor';
 import { produceRepositorySummary } from './summary';
 import { buildRepositoryContextGraph } from './graph';
 import { evaluateRepositoryContradictions, evaluateRepositoryContradictionsAsync } from './evaluator';
+import { LLMClient } from './llm/client';
 import {
   NormalizedArtifact,
   RepositorySummary,
   RepositoryContextGraph,
   ContradictionFinding,
   ExtractedClaim,
+  RepositoryInfo,
+  AnalysisPipelineResult,
 } from '../types/engine';
 
-export interface AnalysisPipelineResult {
-  scanResult: ScanResult;
-  artifacts: NormalizedArtifact[];
-  summary: RepositorySummary;
-  graph: RepositoryContextGraph;
-  claims: ExtractedClaim[];
-  findings: ContradictionFinding[];
-  healthScore: number;
-}
-
 export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<AnalysisPipelineResult> {
+  const llmClient = new LLMClient();
+
   // 1. Scan Repository
   const scanResult = scanRepository(repoPath);
 
@@ -45,6 +40,8 @@ export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<An
   // 7. Calculate Repository Health Score (0 - 100)
   const healthScore = calculateHealthScore(findings);
 
+  const semanticStatus = llmClient.isAvailable() ? 'COMPLETED' : 'UNAVAILABLE';
+
   return {
     scanResult,
     artifacts: scanResult.artifacts,
@@ -53,6 +50,9 @@ export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<An
     claims,
     findings,
     healthScore,
+    semanticStatus,
+    llmProvider: llmClient.getProviderName(),
+    llmModel: llmClient.getModelName(),
   };
 }
 

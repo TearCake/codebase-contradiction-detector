@@ -170,6 +170,7 @@ export interface ContradictionFinding {
   severity: SeverityLevel;
   probabilisticSourceOfTruth: ProbabilisticSourceOfTruth;
   status: 'OPEN' | 'RESOLVED' | 'IGNORED';
+  detectionSource?: 'DETERMINISTIC' | 'SEMANTIC' | 'HYBRID';
 }
 
 export interface ContextGraphNode {
@@ -191,6 +192,15 @@ export interface RepositoryContextGraph {
   edges: ContextGraphEdge[];
 }
 
+export interface RepositoryInfo {
+  source: 'demo' | 'github';
+  url: string;
+  owner?: string;
+  repo?: string;
+  fileCount: number;
+  artifactCount: number;
+}
+
 export interface AnalysisPipelineResult {
   scanResult: any;
   artifacts: NormalizedArtifact[];
@@ -199,6 +209,10 @@ export interface AnalysisPipelineResult {
   claims: ExtractedClaim[];
   findings: ContradictionFinding[];
   healthScore: number;
+  semanticStatus?: 'COMPLETED' | 'RATE_LIMITED' | 'UNAVAILABLE';
+  llmProvider?: string;
+  llmModel?: string;
+  repositoryInfo?: RepositoryInfo;
 }
 
 // Retained for legacy/backward compatibility

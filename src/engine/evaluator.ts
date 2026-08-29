@@ -141,6 +141,7 @@ function evaluateGenericBehavioralContradictions(
           reasoning: `${author.sourceType} artifact in ${author.filePath} governs production execution or enforcement.`,
         },
         status: 'OPEN',
+        detectionSource: 'HYBRID',
       });
     }
   });
@@ -181,7 +182,7 @@ function clusterMultiSourceFindings(findings: ContradictionFinding[]): Contradic
     if (mergedClaims.length > base.conflictingClaims.length) {
       result.push({
         ...base,
-        title: `Multi-Source Contradiction (${mergedClaims.length} artifacts)`,
+        title: `Multi-Source Contradiction (${mergedClaims.length} sources)`,
         summary: `Disagreement detected across ${mergedClaims.map((c) => c.filePath).join(', ')}.`,
         conflictingClaims: mergedClaims,
       });

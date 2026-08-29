@@ -13,8 +13,15 @@ import {
   Sparkles,
   ArrowDown,
   CheckCircle2,
+  Brain,
+  Github,
+  Search,
+  ExternalLink,
+  AlertCircle,
+  FolderGit2,
+  Check,
 } from 'lucide-react';
-import { AnalysisPipelineResult, ContradictionFinding, ExtractedClaim } from '../types/engine';
+import { AnalysisPipelineResult } from '../types/engine';
 
 function formatSubjectLabel(subject: string): string {
   if (!subject) return 'Domain Logic';
@@ -74,28 +81,81 @@ export default function Dashboard() {
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [activeTab, setActiveTab] = useState<'FINDINGS' | 'GRAPH'>('FINDINGS');
+  
+  // GitHub & Scan State
+  const [githubUrl, setGithubUrl] = useState<string>('');
   const [isScanning, setIsScanning] = useState<boolean>(false);
+  const [progressStage, setProgressStage] = useState<string>('');
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleRunScan = () => {
+  const runScan = async (sourceType: 'demo' | 'github', urlToScan?: string) => {
     setIsScanning(true);
-    fetch('/api/analyze')
-      .then((res) => res.json())
-      .then((data) => {
-        setAnalysis(data);
-        if (data.findings && data.findings.length > 0 && !selectedFindingId) {
-          setSelectedFindingId(data.findings[0].id);
-        }
-        setIsScanning(false);
-      })
-      .catch((err) => {
-        console.error('Scan API request failed:', err);
-        setIsScanning(false);
+    setErrorMessage(null);
+
+    if (sourceType === 'github') {
+      setProgressStage('Downloading repository...');
+    } else {
+      setProgressStage('Scanning artifacts...');
+    }
+
+    const timer1 = setTimeout(() => {
+      if (sourceType === 'github') {
+        setProgressStage('Scanning artifacts...');
+      }
+    }, 1500);
+
+    const timer2 = setTimeout(() => {
+      setProgressStage('Detecting contradictions...');
+    }, 3000);
+
+    try {
+      const response = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          source: sourceType,
+          url: urlToScan,
+        }),
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to analyze repository.');
+      }
+
+      setAnalysis(data);
+      if (data.findings && data.findings.length > 0) {
+        setSelectedFindingId(data.findings[0].id);
+      } else {
+        setSelectedFindingId(null);
+      }
+    } catch (err: any) {
+      console.error('Scan failed:', err);
+      setErrorMessage(err.message || 'An unexpected error occurred during repository analysis.');
+    } finally {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+      setIsScanning(false);
+      setProgressStage('');
+    }
   };
 
-  useEffect(() => {
-    handleRunScan();
-  }, []);
+  const handleScanDemo = () => {
+    runScan('demo');
+  };
+
+  const handleScanGitHub = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!githubUrl.trim()) {
+      setErrorMessage('Please enter a GitHub repository URL.');
+      return;
+    }
+    runScan('github', githubUrl.trim());
+  };
+
+  // Removed automatic auto-scan on page load so user can choose source first.
+  useEffect(() => {}, []);
 
   const selectedFinding = analysis?.findings.find((f) => f.id === selectedFindingId);
 
@@ -124,16 +184,197 @@ export default function Dashboard() {
         </div>
 
         <div className="flex items-center space-x-4">
+          {analysis && (
+            <div className="hidden sm:flex items-center space-x-2 text-xs font-mono px-3 py-1.5 rounded-lg border bg-slate-900 border-slate-800">
+              <Brain className="w-3.5 h-3.5 text-sky-400" />
+              <span className="text-slate-400">Semantic Engine:</span>
+              <span className={analysis.semanticStatus === 'COMPLETED' ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
+                {analysis.semanticStatus === 'COMPLETED' ? '✓ Completed' : analysis.semanticStatus === 'RATE_LIMITED' ? '⚠ Rate Limited' : '⚠ Unavailable'}
+              </span>
+            </div>
+          )}
+
           <button
-            onClick={handleRunScan}
+            onClick={handleScanDemo}
             disabled={isScanning}
-            className="flex items-center space-x-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm transition-all shadow-lg shadow-sky-500/10 disabled:opacity-50"
+            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-3.5 py-1.5 rounded-lg text-xs transition-all disabled:opacity-50"
           >
-            <RefreshCw className={`w-4 h-4 ${isScanning ? 'animate-spin' : ''}`} />
-            <span>{isScanning ? 'Scanning Repo...' : 'Rescan Repository'}</span>
+            <FolderGit2 className="w-3.5 h-3.5 text-sky-400" />
+            <span>Try Demo Repository</span>
           </button>
         </div>
       </header>
+
+      {/* Hero / Input Panel */}
+      <div className="bg-slate-900/40 border-b border-slate-800 py-6 px-6">
+        <div className="max-w-[1600px] mx-auto space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+                <Github className="w-4 h-4 text-sky-400" />
+                Analyze a GitHub repository
+              </h2>
+              <p className="text-xs text-slate-400 mt-1">
+                Paste a public GitHub repository URL to download, extract, and scan all software artifacts for cross-source contradictions.
+              </p>
+            </div>
+
+            {/* Quick Demo Button */}
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-500">Or test with pre-built scenarios:</span>
+              <button
+                onClick={handleScanDemo}
+                disabled={isScanning}
+                className="text-xs font-mono bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/20 px-3 py-1.5 rounded-md transition-all flex items-center gap-1.5"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                Run 5-Scenario Demo
+              </button>
+            </div>
+          </div>
+
+          {/* GitHub URL Input Bar */}
+          <form onSubmit={handleScanGitHub} className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                <Search className="h-4 w-4 text-slate-500" />
+              </div>
+              <input
+                type="text"
+                placeholder="https://github.com/owner/repository"
+                value={githubUrl}
+                onChange={(e) => setGithubUrl(e.target.value)}
+                disabled={isScanning}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-950 border border-slate-800 rounded-lg text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/30 transition-all font-mono"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isScanning || !githubUrl.trim()}
+              className="flex items-center justify-center space-x-2 bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold px-6 py-2.5 rounded-lg text-sm transition-all shadow-lg shadow-sky-500/10 disabled:opacity-50 disabled:cursor-not-allowed shrink-0"
+            >
+              {isScanning ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Analyzing...</span>
+                </>
+              ) : (
+                <>
+                  <Github className="w-4 h-4" />
+                  <span>Analyze Repository</span>
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Loading Progress State Indicator */}
+          {isScanning && (
+            <div className="bg-sky-500/5 border border-sky-500/20 rounded-lg p-4 flex items-center space-x-3 animate-pulse">
+              <RefreshCw className="w-5 h-5 text-sky-400 animate-spin shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-sky-300 font-mono">{progressStage}</p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Parsing AST definitions, extractors, and evaluating cross-artifact claim consistency...
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Validation / Analysis Error Banner */}
+          {errorMessage && (
+            <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-4 flex items-start space-x-3">
+              <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-sm font-semibold text-rose-300">Analysis Error</h4>
+                <p className="text-xs text-rose-200/90 mt-1 leading-relaxed">{errorMessage}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Repository Metadata Banner */}
+          {analysis && analysis.repositoryInfo && !isScanning && (
+            <div className="bg-slate-950/80 border border-slate-800 rounded-lg px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+              <div className="flex items-center space-x-3 font-mono">
+                <span className="text-slate-400 flex items-center gap-1.5">
+                  <FolderGit2 className="w-4 h-4 text-sky-400" />
+                  Analyzed Source:
+                </span>
+                <span className="text-slate-200 font-bold">
+                  {analysis.repositoryInfo.source === 'github' ? (
+                    <a
+                      href={analysis.repositoryInfo.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sky-400 hover:underline inline-flex items-center gap-1"
+                    >
+                      {analysis.repositoryInfo.owner}/{analysis.repositoryInfo.repo}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  ) : (
+                    'Bundled Demo Repository (demo-repo)'
+                  )}
+                </span>
+              </div>
+
+              <div className="flex items-center space-x-4 font-mono text-slate-400">
+                <span>
+                  Files Indexed: <strong className="text-slate-200">{analysis.repositoryInfo.fileCount}</strong>
+                </span>
+                <span>
+                  Artifacts Analyzed: <strong className="text-slate-200">{analysis.repositoryInfo.artifactCount}</strong>
+                </span>
+                <span>
+                  Contradictions: <strong className="text-amber-400">{analysis.findings.length}</strong>
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Initial Prompt View when no analysis has run yet */}
+      {!analysis && !isScanning && (
+        <div className="flex-1 flex flex-col items-center justify-center max-w-3xl mx-auto p-8 text-center my-12">
+          <div className="p-4 bg-sky-500/10 rounded-2xl border border-sky-500/20 text-sky-400 mb-6">
+            <Zap className="w-10 h-10" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-100 mb-3">
+            Ready to Detect Codebase Contradictions
+          </h2>
+          <p className="text-slate-400 text-sm leading-relaxed max-w-xl mb-8">
+            Choose an option above to begin: paste a public GitHub repository URL to download and analyze real code, or test the engine instantly on our 5-scenario synthetic demo repository.
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full text-left">
+            <div className="p-5 bg-slate-900/80 border border-slate-800 rounded-xl space-y-2">
+              <div className="flex items-center space-x-2 text-sky-400 font-semibold text-sm">
+                <Github className="w-4 h-4" />
+                <span>Option 1: Public GitHub Repo</span>
+              </div>
+              <p className="text-xs text-slate-400">
+                Paste any public GitHub repository link (e.g. <code className="text-sky-300">https://github.com/expressjs/cors</code>) into the search bar above and click <strong className="text-slate-300">Analyze Repository</strong>.
+              </p>
+            </div>
+
+            <div
+              onClick={handleScanDemo}
+              className="p-5 bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-sky-500/50 rounded-xl space-y-2 cursor-pointer transition-all group"
+            >
+              <div className="flex items-center justify-between text-sky-400 font-semibold text-sm">
+                <span className="flex items-center space-x-2">
+                  <FolderGit2 className="w-4 h-4" />
+                  <span>Option 2: Try Demo Repository</span>
+                </span>
+                <Sparkles className="w-4 h-4 text-amber-400 group-hover:scale-110 transition-transform" />
+              </div>
+              <p className="text-xs text-slate-400">
+                Click here or the button in the header to immediately analyze the bundled synthetic repository containing 5 structural, behavioral, schema, config, and test contradictions.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Dashboard Layout */}
       {analysis && (
@@ -175,7 +416,7 @@ export default function Dashboard() {
               <div>
                 <span className="text-xs uppercase tracking-wider text-slate-400 font-semibold">Repository Health</span>
                 <h3 className="text-sm font-semibold text-slate-200 mt-0.5">
-                  {analysis.healthScore > 80 ? 'Good Condition' : 'Truth Disagreements Found'}
+                  Repository Health: {analysis.healthScore}/100
                 </h3>
                 <p className="text-xs text-amber-400 font-mono mt-1">{analysis.findings.length} active contradictions</p>
               </div>
@@ -273,63 +514,78 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
               {/* Findings List Sidebar */}
               <div className="lg:col-span-4 space-y-3">
-                {filteredFindings.map((finding) => {
-                  const isSelected = finding.id === selectedFindingId;
-                  const confBadge = getConfidenceBadgeLabel(finding.confidenceScore);
-                  const isMulti = finding.conflictingClaims.length >= 3;
+                {filteredFindings.length === 0 ? (
+                  <div className="p-8 text-center text-slate-500 bg-slate-900/40 border border-slate-800 rounded-xl">
+                    No contradictions found matching filter.
+                  </div>
+                ) : (
+                  filteredFindings.map((finding) => {
+                    const isSelected = finding.id === selectedFindingId;
+                    const confBadge = getConfidenceBadgeLabel(finding.confidenceScore);
+                    const isMulti = finding.conflictingClaims.length >= 3;
+                    const detectionTag = finding.detectionSource || 'DETERMINISTIC';
 
-                  return (
-                    <div
-                      key={finding.id}
-                      onClick={() => setSelectedFindingId(finding.id)}
-                      className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                        isSelected
-                          ? 'bg-slate-900 border-sky-500/50 shadow-lg shadow-sky-500/5 ring-1 ring-sky-500/20'
-                          : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/80'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span
-                          className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold uppercase ${
-                            finding.severity === 'CRITICAL'
-                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                              : finding.severity === 'HIGH'
-                              ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                              : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                          }`}
-                        >
-                          {finding.severity}
-                        </span>
-                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${confBadge.colorClass}`}>
-                          {confBadge.label}
-                        </span>
+                    return (
+                      <div
+                        key={finding.id}
+                        onClick={() => setSelectedFindingId(finding.id)}
+                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? 'bg-slate-900 border-sky-500/50 shadow-lg shadow-sky-500/5 ring-1 ring-sky-500/20'
+                            : 'bg-slate-900/50 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900/80'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center space-x-1.5">
+                            <span
+                              className={`text-[10px] font-mono px-2 py-0.5 rounded font-semibold uppercase ${
+                                finding.severity === 'CRITICAL'
+                                  ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                                  : finding.severity === 'HIGH'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                              }`}
+                            >
+                              {finding.severity}
+                            </span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-400 border border-slate-700/60">
+                              {detectionTag}
+                            </span>
+                          </div>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${confBadge.colorClass}`}>
+                            {confBadge.label}
+                          </span>
+                        </div>
+
+                        <h4 className="text-sm font-semibold text-slate-200 line-clamp-1">{finding.title}</h4>
+                        <p className="text-xs text-slate-400 mt-1 line-clamp-2">{finding.summary}</p>
+
+                        <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800/60 pt-2">
+                          <span className="font-mono text-slate-400">{finding.category}</span>
+                          <span className="font-mono text-slate-300 font-medium">
+                            {isMulti ? 'Multi-source contradiction' : '2 conflicting sources'}
+                          </span>
+                        </div>
                       </div>
-
-                      <h4 className="text-sm font-semibold text-slate-200 line-clamp-1">{finding.title}</h4>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">{finding.summary}</p>
-
-                      <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800/60 pt-2">
-                        <span className="font-mono text-slate-400">{finding.category}</span>
-                        <span className="font-mono text-slate-300">
-                          {finding.conflictingClaims.length} conflicting sources {isMulti ? '(Multi-source)' : ''}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
 
               {/* Main Evidence Proof Viewer */}
               <div className="lg:col-span-8 bg-slate-900/90 border border-slate-800 rounded-xl p-6 flex flex-col space-y-6">
                 {selectedFinding ? (
                   <>
-                    {/* 1. Header & Title Hierarchy */}
+                    {/* 1. Human-Readable Title & Header Metadata */}
                     <div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-md">
                           {formatSubjectLabel(selectedFinding.subject)}
                         </span>
                         <div className="flex items-center space-x-2">
+                          <span className="text-xs font-mono px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                            {selectedFinding.detectionSource || 'DETERMINISTIC'}
+                          </span>
                           <span className={`text-xs font-mono px-2.5 py-0.5 rounded border ${getConfidenceBadgeLabel(selectedFinding.confidenceScore).colorClass}`}>
                             {getConfidenceBadgeLabel(selectedFinding.confidenceScore).label}
                           </span>
@@ -354,8 +610,8 @@ export default function Dashboard() {
                           <AlertTriangle className="w-4 h-4 text-amber-400" />
                           Conflicting Sources ({selectedFinding.conflictingClaims.length})
                         </span>
-                        <span className="text-[11px] font-mono text-slate-500">
-                          {selectedFinding.conflictingClaims.length >= 3 ? 'Multi-Source Cluster' : 'Pairwise Discrepancy'}
+                        <span className="text-[11px] font-mono text-slate-400">
+                          {selectedFinding.conflictingClaims.length >= 3 ? 'Multi-source contradiction' : '2 conflicting sources'}
                         </span>
                       </h3>
 
@@ -366,7 +622,7 @@ export default function Dashboard() {
                             : 'grid-cols-1 md:grid-cols-2'
                         }`}
                       >
-                        {selectedFinding.conflictingClaims.map((claim, idx) => (
+                        {selectedFinding.conflictingClaims.map((claim) => (
                           <div
                             key={claim.id}
                             className="bg-slate-950 border border-slate-800 rounded-lg p-4 flex flex-col justify-between"
@@ -419,8 +675,8 @@ export default function Dashboard() {
                           <h4 className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
                             Likely Authoritative Source
                           </h4>
-                          <span className="flex items-center gap-1 text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Evidence Verified on Disk
+                          <span className="flex items-center gap-1 text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md">
+                            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> ✓ Evidence Verified
                           </span>
                         </div>
                         <div className="mt-1.5 text-xs font-mono font-bold text-slate-200">

@@ -134,6 +134,7 @@ export function checkRouteContradictions(artifacts: NormalizedArtifact[]): Contr
               reasoning: `Code implementation in ${codeRoute.filePath} represents actual runtime execution routing.`,
             },
             status: 'OPEN',
+            detectionSource: 'DETERMINISTIC',
           });
         }
       });

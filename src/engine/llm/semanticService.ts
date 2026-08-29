@@ -94,6 +94,7 @@ export async function evaluateSemanticContradictions(
       severity,
       probabilisticSourceOfTruth: sourceOfTruth,
       status: 'OPEN',
+      detectionSource: 'SEMANTIC',
     });
   }
 
