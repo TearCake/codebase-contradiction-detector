@@ -30,24 +30,51 @@ export interface LLMComparisonResponse {
 }
 
 export interface LLMProviderConfig {
+  provider?: 'groq' | 'openai' | 'gemini';
   apiKey?: string;
   model?: string;
   baseURL?: string;
 }
 
 export class LLMClient {
+  private provider: 'groq' | 'openai' | 'gemini';
   private apiKey: string | undefined;
   private model: string;
   private baseURL: string;
+  private hasHitRateLimit = false;
 
   constructor(config?: LLMProviderConfig) {
-    this.apiKey = config?.apiKey || process.env.LLM_API_KEY || process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
-    this.model = config?.model || process.env.LLM_MODEL || 'gemini-2.5-flash';
-    this.baseURL = config?.baseURL || process.env.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+    const rawProvider = (config?.provider || process.env.LLM_PROVIDER || '').toLowerCase();
+    
+    if (rawProvider === 'gemini' || process.env.GEMINI_API_KEY) {
+      this.provider = 'gemini';
+      this.apiKey = config?.apiKey || process.env.GEMINI_API_KEY || process.env.LLM_API_KEY;
+      this.model = config?.model || process.env.LLM_MODEL || 'gemini-2.5-flash';
+      this.baseURL = config?.baseURL || process.env.LLM_BASE_URL || 'https://generativelanguage.googleapis.com/v1beta';
+    } else if (rawProvider === 'openai') {
+      this.provider = 'openai';
+      this.apiKey = config?.apiKey || process.env.OPENAI_API_KEY || process.env.LLM_API_KEY;
+      this.model = config?.model || process.env.LLM_MODEL || 'gpt-4o-mini';
+      this.baseURL = config?.baseURL || process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
+    } else {
+      // Primary default provider: Groq
+      this.provider = 'groq';
+      this.apiKey = config?.apiKey || process.env.GROQ_API_KEY || process.env.LLM_API_KEY;
+      this.model = config?.model || process.env.LLM_MODEL || 'openai/gpt-oss-120b';
+      this.baseURL = config?.baseURL || process.env.LLM_BASE_URL || 'https://api.groq.com/openai/v1';
+    }
   }
 
   public isAvailable(): boolean {
-    return Boolean(this.apiKey && this.apiKey.trim().length > 0);
+    return Boolean(this.apiKey && this.apiKey.trim().length > 0 && !this.hasHitRateLimit);
+  }
+
+  public getProviderName(): string {
+    return this.provider;
+  }
+
+  public getModelName(): string {
+    return this.model;
   }
 
   public async compareClaims(req: LLMComparisonRequest): Promise<LLMComparisonResponse | null> {
@@ -55,25 +82,48 @@ export class LLMClient {
       return null;
     }
 
-    const prompt = this.buildPrompt(req);
+    const { systemPrompt, userPrompt } = this.buildPrompt(req);
 
     try {
-      // Determine endpoint based on provider or key prefix
-      if (this.apiKey?.startsWith('sk-') && !this.baseURL.includes('generativelanguage')) {
-        return await this.callOpenAIFormat(prompt);
+      if (this.provider === 'gemini') {
+        return await this.callGeminiFormat(`${systemPrompt}\n\n${userPrompt}`);
       } else {
-        return await this.callGeminiFormat(prompt);
+        // Both Groq and OpenAI use OpenAI-compatible chat completions API
+        return await this.callOpenAICompatibleFormat(systemPrompt, userPrompt);
       }
     } catch (error) {
-      console.warn('[LLMClient] Request failed:', error instanceof Error ? error.message : error);
+      console.warn(`[LLMClient:${this.provider}] Request failed:`, error instanceof Error ? error.message : error);
       return null;
     }
   }
 
-  private buildPrompt(req: LLMComparisonRequest): string {
-    return `You are a precise software engineering semantic judge analyzing two extracted claims from a repository for potential contradictions.
+  private buildPrompt(req: LLMComparisonRequest): { systemPrompt: string; userPrompt: string } {
+    const systemPrompt = `You are a precise software engineering semantic judge analyzing two extracted claims from a repository for potential contradictions.
 
-CLAIM A:
+INSTRUCTIONS:
+1. Determine if Claim A and Claim B address the exact same software entity/subject or business logic rule ("sameSubject").
+2. Determine if they make mutually exclusive assertions ("contradictory").
+   - A contradiction means both claims cannot simultaneously be true in the system runtime or documentation (e.g., refund window 24h vs 48h, status 401 vs 403, required vs optional).
+   - Harmless wording differences or non-overlapping scope are NOT contradictions.
+   - Missing information is NOT a contradiction unless one explicitly requires what another forbids or omits in an incompatible contract.
+3. Assign a confidence score between 0.0 and 1.0.
+4. If contradictory, specify the category ('STRUCTURAL' | 'BEHAVIORAL' | 'API_CONTRACT' | 'CONFIGURATION' | 'TESTING').
+5. Provide a short, clear title, summary, and detailed incompatibilityReason explaining why they conflict.
+6. Which source is likely authoritative ('CLAIM_A' or 'CLAIM_B')? Usually actual runtime code or enforced test code > documentation/specs.
+
+Return ONLY a valid, raw JSON object matching this schema without markdown code blocks:
+{
+  "sameSubject": boolean,
+  "contradictory": boolean,
+  "confidence": number,
+  "category": "BEHAVIORAL" | "STRUCTURAL" | "API_CONTRACT" | "CONFIGURATION" | "TESTING",
+  "title": "Short title",
+  "summary": "One sentence narrative summary",
+  "incompatibilityReason": "Clear technical reason explaining the mutual exclusion",
+  "suggestedAuthoritativeSource": "CLAIM_A" | "CLAIM_B" | "UNKNOWN"
+}`;
+
+    const userPrompt = `CLAIM A:
 - Source Type: ${req.claimA.sourceType}
 - File Path: ${req.claimA.filePath}
 - Subject: ${req.claimA.subject}
@@ -91,30 +141,60 @@ CLAIM B:
 - Raw Snippet:
 \`\`\`
 ${req.claimB.rawSnippet}
-\`\`\`
+\`\`\``;
 
-INSTRUCTIONS:
-1. Determine if Claim A and Claim B address the exact same software entity/subject or business logic rule ("sameSubject").
-2. Determine if they make mutually exclusive assertions ("contradictory").
-   - A contradiction means both claims cannot simultaneously be true in the system runtime or documentation (e.g., refund window 24h vs 48h, status 401 vs 403, required vs optional).
-   - Harmless wording differences or non-overlapping scope are NOT contradictions.
-   - Missing information is NOT a contradiction unless one explicitly requires what another forbids or omits in an incompatible contract.
-3. Assign a confidence score between 0.0 and 1.0.
-4. If contradictory, specify the category ('STRUCTURAL' | 'BEHAVIORAL' | 'API_CONTRACT' | 'CONFIGURATION' | 'TESTING').
-5. Provide a short, clear title, summary, and detailed incompatibilityReason explaining why they conflict.
-6. Which source is likely authoritative ('CLAIM_A' or 'CLAIM_B')? Usually actual runtime code or enforced test code > documentation/specs.
+    return { systemPrompt, userPrompt };
+  }
 
-Return ONLY a valid, raw JSON object matching this TypeScript interface without markdown wrapping (no \`\`\`json):
-{
-  "sameSubject": boolean,
-  "contradictory": boolean,
-  "confidence": number,
-  "category": "BEHAVIORAL" | "STRUCTURAL" | "API_CONTRACT" | "CONFIGURATION" | "TESTING",
-  "title": "Short title",
-  "summary": "One sentence narrative summary",
-  "incompatibilityReason": "Clear technical reason explaining the mutual exclusion",
-  "suggestedAuthoritativeSource": "CLAIM_A" | "CLAIM_B" | "UNKNOWN"
-}`;
+  private async callOpenAICompatibleFormat(systemPrompt: string, userPrompt: string): Promise<LLMComparisonResponse | null> {
+    const url = `${this.baseURL}/chat/completions`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+          temperature: 0.1,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (response.status === 429) {
+        console.warn(`[LLMClient:${this.provider}] HTTP 429 Rate limit encountered. Bypassing remaining LLM calls for this scan.`);
+        this.hasHitRateLimit = true;
+        return null;
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.warn(`[LLMClient:${this.provider}] API HTTP ${response.status}: ${errText.slice(0, 200)}`);
+        return null;
+      }
+
+      const data = await response.json();
+      const rawText = data?.choices?.[0]?.message?.content;
+      return parseAndValidateLLMResponse(rawText);
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        console.warn(`[LLMClient:${this.provider}] Request timed out after 15s.`);
+      } else {
+        console.warn(`[LLMClient:${this.provider}] Request error:`, err instanceof Error ? err.message : err);
+      }
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
   private async callGeminiFormat(prompt: string): Promise<LLMComparisonResponse | null> {
@@ -136,50 +216,28 @@ Return ONLY a valid, raw JSON object matching this TypeScript interface without 
         }),
       });
 
+      if (response.status === 429) {
+        console.warn(`[LLMClient:gemini] HTTP 429 Rate limit encountered. Bypassing remaining LLM calls for this scan.`);
+        this.hasHitRateLimit = true;
+        return null;
+      }
+
       if (!response.ok) {
         const errText = await response.text();
-        console.warn(`[LLMClient] Gemini API HTTP ${response.status}: ${errText}`);
+        console.warn(`[LLMClient:gemini] Gemini API HTTP ${response.status}: ${errText.slice(0, 200)}`);
         return null;
       }
 
       const data = await response.json();
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       return parseAndValidateLLMResponse(rawText);
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  private async callOpenAIFormat(prompt: string): Promise<LLMComparisonResponse | null> {
-    const url = `${this.baseURL}/chat/completions`;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: this.model || 'gpt-4o-mini',
-          messages: [{ role: 'user', content: prompt }],
-          temperature: 0.1,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        console.warn(`[LLMClient] OpenAI API HTTP ${response.status}: ${errText}`);
-        return null;
+    } catch (err) {
+      if ((err as Error)?.name === 'AbortError') {
+        console.warn(`[LLMClient:gemini] Request timed out after 15s.`);
+      } else {
+        console.warn(`[LLMClient:gemini] Request error:`, err instanceof Error ? err.message : err);
       }
-
-      const data = await response.json();
-      const rawText = data?.choices?.[0]?.message?.content;
-      return parseAndValidateLLMResponse(rawText);
+      return null;
     } finally {
       clearTimeout(timeoutId);
     }
@@ -193,7 +251,6 @@ export function parseAndValidateLLMResponse(rawText: string | undefined | null):
   if (!rawText) return null;
 
   try {
-    // Strip code fence if model included it
     let cleaned = rawText.trim();
     if (cleaned.startsWith('```json')) {
       cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');

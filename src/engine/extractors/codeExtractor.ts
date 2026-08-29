@@ -115,35 +115,6 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
         });
       }
 
-      // Check for business logic grace period checks
-      if (node.getKind() === SyntaxKind.IfStatement) {
-        const ifText = node.getText();
-        const thresholdMatch = ifText.match(/([a-zA-Z0-9_]+)\s*(>|<|>=|<=|==|===)\s*(\d+)/);
-        if (thresholdMatch) {
-          const paramName = thresholdMatch[1];
-          const operator = thresholdMatch[2];
-          const value = parseInt(thresholdMatch[3], 10);
-          const startLine = node.getStartLineNumber();
-          const endLine = node.getEndLineNumber();
-
-          if (paramName.toLowerCase().includes('hour') || paramName.toLowerCase().includes('grace')) {
-            claims.push({
-              id: `claim-${artifact.filePath}-logic-${startLine}`,
-              artifactId: artifact.id,
-              filePath: artifact.filePath,
-              startLine,
-              endLine,
-              sourceType: artifact.artifactType,
-              rawSnippet: ifText.slice(0, 180),
-              subject: 'cancellation_grace_period',
-              assertion: `Cancellation threshold check: ${paramName} ${operator} ${value}`,
-              symbolName: paramName,
-              metadata: { paramName, operator, value, kind: 'BUSINESS_LOGIC_THRESHOLD' },
-            });
-          }
-        }
-      }
-
       // Zod Schema Extraction
       if (text.includes('z.object') || text.includes('z.string')) {
         const propertyMatches = text.matchAll(/([a-zA-Z0-9_]+)\s*:\s*z\.string\(\)\.nonempty/g);
@@ -164,6 +135,35 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
             assertion: `Zod schema requires field ${fieldName}`,
             symbolName: fieldName,
             metadata: { fieldName, required: true, kind: 'ZOD_SCHEMA_REQUIREMENT' },
+          });
+        }
+      }
+    }
+
+    // Check for business logic grace period checks
+    if (node.getKind() === SyntaxKind.IfStatement) {
+      const ifText = node.getText();
+      const thresholdMatch = ifText.match(/([a-zA-Z0-9_]+)\s*(>|<|>=|<=|==|===)\s*(\d+)/);
+      if (thresholdMatch) {
+        const paramName = thresholdMatch[1];
+        const operator = thresholdMatch[2];
+        const value = parseInt(thresholdMatch[3], 10);
+        const startLine = node.getStartLineNumber();
+        const endLine = node.getEndLineNumber();
+
+        if (paramName.toLowerCase().includes('hour') || paramName.toLowerCase().includes('grace')) {
+          claims.push({
+            id: `claim-${artifact.filePath}-logic-${startLine}`,
+            artifactId: artifact.id,
+            filePath: artifact.filePath,
+            startLine,
+            endLine,
+            sourceType: artifact.artifactType,
+            rawSnippet: ifText.slice(0, 180),
+            subject: 'cancellation_grace_period',
+            assertion: `Cancellation threshold check: ${paramName} ${operator} ${value}`,
+            symbolName: paramName,
+            metadata: { paramName, operator, value, kind: 'BUSINESS_LOGIC_THRESHOLD' },
           });
         }
       }

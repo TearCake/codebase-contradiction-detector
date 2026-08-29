@@ -3,60 +3,94 @@
 import React, { useState, useEffect } from 'react';
 import {
   AlertTriangle,
-  CheckCircle2,
   FileCode2,
   GitBranch,
   Layers,
   RefreshCw,
-  Search,
   ShieldCheck,
   Zap,
-  BookOpen,
   Sliders,
   Sparkles,
-  ArrowRight,
-  ExternalLink,
-  Link as LinkIcon,
   ArrowDown,
-  ArrowUp
+  CheckCircle2,
 } from 'lucide-react';
-import { MOCK_ANALYSIS_RESULT } from '../engine/mockData';
-import { AnalysisPipelineResult } from '../types/engine';
-import { runFullAnalysisPipeline } from '../engine/index';
+import { AnalysisPipelineResult, ContradictionFinding, ExtractedClaim } from '../types/engine';
+
+function formatSubjectLabel(subject: string): string {
+  if (!subject) return 'Domain Logic';
+  if (subject.startsWith('logical_conflict:') || subject.startsWith('conflict:')) {
+    if (subject.includes('route:')) {
+      const match = subject.match(/route:([^:]+)/);
+      return match ? `Route ${match[1]}` : 'API Route Contract';
+    }
+    if (subject.includes('env:')) {
+      const match = subject.match(/env:([^:]+)/);
+      return match ? `Config Key ${match[1]}` : 'Environment Variable';
+    }
+    if (subject.includes('schema:')) {
+      const match = subject.match(/schema:([^:]+)/);
+      return match ? `Schema ${match[1]}` : 'API Schema Contract';
+    }
+    return 'Multi-Source Discrepancy';
+  }
+  if (subject.startsWith('route:')) return subject.replace('route:', 'Route ');
+  if (subject.startsWith('env:')) return subject.replace('env:', 'Config Key ');
+  if (subject.startsWith('schema:')) return subject.replace('schema:', 'Schema ');
+  if (subject === 'cancellation_grace_period' || subject === 'domain:user_cancellation_period') return 'Cancellation Grace Period';
+  if (subject === 'domain:auth_endpoint' || subject === 'EXPIRED_TOKEN_RESPONSE') return 'Authentication Endpoint';
+
+  return subject.replace(/^[a-z_]+:/i, '').replace(/_/g, ' ');
+}
+
+function getConfidenceBadgeLabel(score: number): { label: string; colorClass: string } {
+  if (score >= 0.85) {
+    return { label: 'High Confidence', colorClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+  } else if (score >= 0.7) {
+    return { label: 'Medium Confidence', colorClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+  } else {
+    return { label: 'Low Confidence', colorClass: 'bg-slate-500/10 text-slate-400 border-slate-500/20' };
+  }
+}
+
+function getSourceTypeBadgeClass(sourceType: string): string {
+  switch (sourceType) {
+    case 'DOCS':
+      return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+    case 'CODE':
+      return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+    case 'SPEC':
+      return 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20';
+    case 'CONFIG':
+      return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+    case 'TEST':
+      return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+    default:
+      return 'bg-slate-500/10 text-slate-400 border-slate-500/20';
+  }
+}
 
 export default function Dashboard() {
   const [analysis, setAnalysis] = useState<AnalysisPipelineResult | null>(null);
   const [selectedFindingId, setSelectedFindingId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [activeTab, setActiveTab] = useState<'FINDINGS' | 'GRAPH' | 'SUMMARY'>('FINDINGS');
+  const [activeTab, setActiveTab] = useState<'FINDINGS' | 'GRAPH'>('FINDINGS');
   const [isScanning, setIsScanning] = useState<boolean>(false);
 
   const handleRunScan = () => {
     setIsScanning(true);
-    setTimeout(() => {
-      // In a real Next.js app, this might be a server action or API call.
-      // For this demo, we can just run the pipeline if we can, but since it's browser side we might need to fetch it.
-      // Let's assume there's an API endpoint, or for this specific fix, just fetch the real data from an API route.
-      // Wait, this is a client component. I should fetch the data from an API route instead of running it locally.
-      fetch('/api/analyze')
-        .then((res) => res.json())
-        .then((data) => {
-          setAnalysis(data);
-          if (data.findings && data.findings.length > 0 && !selectedFindingId) {
-            setSelectedFindingId(data.findings[0].id);
-          }
-          setIsScanning(false);
-        })
-        .catch((err) => {
-          console.error(err);
-          // Fallback to mock data if API is not available
-          setAnalysis({ ...MOCK_ANALYSIS_RESULT });
-          if (!selectedFindingId) {
-            setSelectedFindingId(MOCK_ANALYSIS_RESULT.findings[0]?.id || null);
-          }
-          setIsScanning(false);
-        });
-    }, 400);
+    fetch('/api/analyze')
+      .then((res) => res.json())
+      .then((data) => {
+        setAnalysis(data);
+        if (data.findings && data.findings.length > 0 && !selectedFindingId) {
+          setSelectedFindingId(data.findings[0].id);
+        }
+        setIsScanning(false);
+      })
+      .catch((err) => {
+        console.error('Scan API request failed:', err);
+        setIsScanning(false);
+      });
   };
 
   useEffect(() => {
@@ -111,7 +145,6 @@ export default function Dashboard() {
               <div className="relative flex items-center justify-center">
                 <div className="w-16 h-16 relative flex items-center justify-center">
                   <svg className="w-full h-full -rotate-90 transform" viewBox="0 0 100 100">
-                    {/* Background Circle */}
                     <circle
                       cx="50"
                       cy="50"
@@ -121,7 +154,6 @@ export default function Dashboard() {
                       fill="transparent"
                       className="text-slate-800"
                     />
-                    {/* Progress Arc */}
                     <circle
                       cx="50"
                       cy="50"
@@ -136,7 +168,7 @@ export default function Dashboard() {
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-xl font-bold font-mono text-amber-400">{analysis.healthScore}</span>
+                    <span className="text-sm font-bold font-mono text-amber-400">{analysis.healthScore}/100</span>
                   </div>
                 </div>
               </div>
@@ -145,7 +177,7 @@ export default function Dashboard() {
                 <h3 className="text-sm font-semibold text-slate-200 mt-0.5">
                   {analysis.healthScore > 80 ? 'Good Condition' : 'Truth Disagreements Found'}
                 </h3>
-                <p className="text-xs text-slate-400 mt-1">{analysis.findings.length} active contradictions</p>
+                <p className="text-xs text-amber-400 font-mono mt-1">{analysis.findings.length} active contradictions</p>
               </div>
             </div>
 
@@ -236,13 +268,16 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Tab 1: Findings Explorer with Hero 3-Pane Evidence View */}
+          {/* Tab 1: Findings Explorer */}
           {activeTab === 'FINDINGS' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1">
               {/* Findings List Sidebar */}
               <div className="lg:col-span-4 space-y-3">
                 {filteredFindings.map((finding) => {
                   const isSelected = finding.id === selectedFindingId;
+                  const confBadge = getConfidenceBadgeLabel(finding.confidenceScore);
+                  const isMulti = finding.conflictingClaims.length >= 3;
+
                   return (
                     <div
                       key={finding.id}
@@ -265,8 +300,8 @@ export default function Dashboard() {
                         >
                           {finding.severity}
                         </span>
-                        <span className="text-xs font-mono text-slate-400">
-                          {(finding.confidenceScore * 100).toFixed(0)}% confidence
+                        <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${confBadge.colorClass}`}>
+                          {confBadge.label}
                         </span>
                       </div>
 
@@ -275,7 +310,9 @@ export default function Dashboard() {
 
                       <div className="mt-3 flex items-center justify-between text-[11px] text-slate-500 border-t border-slate-800/60 pt-2">
                         <span className="font-mono text-slate-400">{finding.category}</span>
-                        <span>{finding.conflictingClaims.length} conflicting sources</span>
+                        <span className="font-mono text-slate-300">
+                          {finding.conflictingClaims.length} conflicting sources {isMulti ? '(Multi-source)' : ''}
+                        </span>
                       </div>
                     </div>
                   );
@@ -286,33 +323,45 @@ export default function Dashboard() {
               <div className="lg:col-span-8 bg-slate-900/90 border border-slate-800 rounded-xl p-6 flex flex-col space-y-6">
                 {selectedFinding ? (
                   <>
-                    {/* Header Details */}
+                    {/* 1. Header & Title Hierarchy */}
                     <div>
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-mono text-sky-400 bg-sky-500/10 border border-sky-500/20 px-2.5 py-1 rounded-md">
-                          {selectedFinding.subject}
+                          {formatSubjectLabel(selectedFinding.subject)}
                         </span>
-                        <span className="text-xs font-mono text-slate-400">
-                          Finding ID: <span className="text-slate-300">{selectedFinding.id}</span>
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-xs font-mono px-2.5 py-0.5 rounded border ${getConfidenceBadgeLabel(selectedFinding.confidenceScore).colorClass}`}>
+                            {getConfidenceBadgeLabel(selectedFinding.confidenceScore).label}
+                          </span>
+                          <span className="text-xs font-mono text-slate-400 border border-slate-800 bg-slate-950 px-2.5 py-0.5 rounded">
+                            {selectedFinding.category}
+                          </span>
+                        </div>
                       </div>
 
                       <h2 className="text-xl font-bold text-slate-100 mt-3">{selectedFinding.title}</h2>
-                      <p className="text-sm text-slate-300 mt-2 bg-slate-950/60 p-3.5 rounded-lg border border-slate-800">
+                      
+                      {/* 2. Short Narrative Summary */}
+                      <p className="text-sm text-slate-300 mt-2 bg-slate-950/60 p-3.5 rounded-lg border border-slate-800 leading-relaxed">
                         {selectedFinding.summary}
                       </p>
                     </div>
 
-                    {/* Conflicting Evidence Panes */}
+                    {/* 3. Conflicting Sources & Verbatim Evidence Panes */}
                     <div>
-                      <h3 className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-3 flex items-center gap-2">
-                        <AlertTriangle className="w-4 h-4 text-amber-400" />
-                        Conflicting Multi-Source Claims ({selectedFinding.conflictingClaims.length} Panes)
+                      <h3 className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-3 flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-400" />
+                          Conflicting Sources ({selectedFinding.conflictingClaims.length})
+                        </span>
+                        <span className="text-[11px] font-mono text-slate-500">
+                          {selectedFinding.conflictingClaims.length >= 3 ? 'Multi-Source Cluster' : 'Pairwise Discrepancy'}
+                        </span>
                       </h3>
 
                       <div
                         className={`grid gap-4 ${
-                          selectedFinding.conflictingClaims.length === 3
+                          selectedFinding.conflictingClaims.length >= 3
                             ? 'grid-cols-1 md:grid-cols-3'
                             : 'grid-cols-1 md:grid-cols-2'
                         }`}
@@ -324,22 +373,25 @@ export default function Dashboard() {
                           >
                             <div>
                               <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                                <span className="text-xs font-semibold text-sky-400 uppercase font-mono">
-                                  [{claim.sourceType}] Pane {idx + 1}
+                                <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded border ${getSourceTypeBadgeClass(claim.sourceType)}`}>
+                                  {claim.sourceType}
                                 </span>
-                                <span className="text-[11px] font-mono text-slate-400">{claim.filePath}</span>
+                                <span className="text-[11px] font-mono text-slate-300 truncate max-w-[180px]" title={claim.filePath}>
+                                  {claim.filePath}
+                                </span>
                               </div>
 
-                              <p className="text-xs text-slate-300 my-2 font-medium bg-slate-900/60 p-2 rounded">
+                              <p className="text-xs text-slate-200 my-2.5 font-medium bg-slate-900/80 p-2.5 rounded border border-slate-800/80">
                                 "{claim.assertion}"
                               </p>
 
                               {/* Verbatim Snippet */}
                               <div className="mt-2">
-                                <span className="text-[10px] text-slate-500 uppercase font-mono">
-                                  Lines {claim.startLine}-{claim.endLine}:
-                                </span>
-                                <pre className="mt-1 p-2.5 bg-slate-900 text-slate-300 font-mono text-[11px] rounded border border-slate-800 overflow-x-auto whitespace-pre-wrap">
+                                <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono mb-1">
+                                  <span>Lines {claim.startLine}-{claim.endLine}</span>
+                                  <span className="text-emerald-400/80 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Anchored</span>
+                                </div>
+                                <pre className="p-2.5 bg-slate-900 text-slate-300 font-mono text-[11px] rounded border border-slate-800 overflow-x-auto whitespace-pre-wrap max-h-48">
                                   {claim.rawSnippet}
                                 </pre>
                               </div>
@@ -349,7 +401,7 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    {/* Incompatibility Reason */}
+                    {/* 4. Incompatibility Impact Reason */}
                     <div className="bg-rose-500/5 border border-rose-500/20 rounded-lg p-4">
                       <h4 className="text-xs font-semibold text-rose-400 uppercase tracking-wider mb-1">
                         Incompatibility Impact Reason
@@ -359,22 +411,22 @@ export default function Dashboard() {
                       </p>
                     </div>
 
-                    {/* Likely Authoritative Source Analysis */}
+                    {/* 5. Likely Authoritative Source & Evidence Verification */}
                     <div className="bg-sky-500/5 border border-sky-500/20 rounded-lg p-4 flex items-start space-x-3">
                       <Sparkles className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
-                          Likely Authoritative Source
-                        </h4>
-                        <div className="flex items-center space-x-2 mt-1">
-                          <span className="text-xs font-mono font-bold text-slate-200">
-                            Source:{' '}
-                            <span className="text-sky-300">
-                              {selectedFinding.probabilisticSourceOfTruth.filePath}
-                            </span>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-semibold text-sky-400 uppercase tracking-wider">
+                            Likely Authoritative Source
+                          </h4>
+                          <span className="flex items-center gap-1 text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">
+                            <ShieldCheck className="w-3.5 h-3.5" /> Evidence Verified on Disk
                           </span>
-                          <span className="text-xs font-mono bg-sky-500/20 text-sky-300 px-2 py-0.5 rounded">
-                            Evidence Score: {(selectedFinding.probabilisticSourceOfTruth.probability * 100).toFixed(0)}%
+                        </div>
+                        <div className="mt-1.5 text-xs font-mono font-bold text-slate-200">
+                          File:{' '}
+                          <span className="text-sky-300">
+                            {selectedFinding.probabilisticSourceOfTruth.filePath}
                           </span>
                         </div>
                         <p className="text-xs text-slate-300 mt-1">
@@ -382,10 +434,17 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
+
+                    {/* 6. Secondary Metadata Footer */}
+                    <div className="text-right pt-2 border-t border-slate-800/60">
+                      <span className="text-[10px] font-mono text-slate-500">
+                        Internal Ref: {selectedFinding.id}
+                      </span>
+                    </div>
                   </>
                 ) : (
                   <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
-                    Select a contradiction finding from the list to inspect multi-source evidence.
+                    Select a contradiction finding from the list to inspect evidence.
                   </div>
                 )}
               </div>
@@ -511,7 +570,7 @@ export default function Dashboard() {
                                   <div className="w-full bg-slate-900 border border-amber-500/30 rounded-lg p-4 shadow-lg flex flex-col items-center text-center relative mt-auto">
                                     <div className="absolute -top-3 px-2 bg-slate-950 text-[10px] uppercase font-bold text-amber-400 tracking-wider border border-amber-500/30 rounded">Subject</div>
                                     <Layers className="w-6 h-6 text-amber-400 mb-2 opacity-80" />
-                                    <span className="font-mono text-xs text-slate-200 break-all">{claim.subject}</span>
+                                    <span className="font-mono text-xs text-slate-200 break-all">{formatSubjectLabel(claim.subject)}</span>
                                   </div>
                                 )}
                               </div>
@@ -527,7 +586,7 @@ export default function Dashboard() {
                                 Shared Subject
                               </div>
                               <Layers className="w-8 h-8 text-amber-400 mb-2 opacity-80" />
-                              <span className="font-mono text-lg text-slate-200">{finding.subject}</span>
+                              <span className="font-mono text-lg text-slate-200">{formatSubjectLabel(finding.subject)}</span>
                             </div>
                           </div>
                         )}

@@ -72,6 +72,16 @@ export async function evaluateSemanticContradictions(
     const findingId = `contradiction:semantic:${pair.claimA.filePath}:${pair.claimB.filePath}:${rawFindings.length + 1}`;
     const subject = pair.claimA.subject === pair.claimB.subject ? pair.claimA.subject : `semantic_conflict:${pair.claimA.id}_${pair.claimB.id}`;
 
+    // Determine severity based on category impact (independent of confidence)
+    let severity: ContradictionFinding['severity'] = 'HIGH';
+    if (llmRes.category === 'API_CONTRACT' || llmRes.category === 'BEHAVIORAL') {
+      severity = 'CRITICAL';
+    } else if (llmRes.category === 'TESTING') {
+      severity = 'MEDIUM';
+    } else {
+      severity = 'HIGH';
+    }
+
     rawFindings.push({
       id: findingId,
       subject,
@@ -81,7 +91,7 @@ export async function evaluateSemanticContradictions(
       conflictingClaims: [pair.claimA, pair.claimB],
       incompatibilityReason: llmRes.incompatibilityReason || `The assertions in ${pair.claimA.filePath} and ${pair.claimB.filePath} cannot simultaneously be true.`,
       confidenceScore: llmRes.confidence || 0.85,
-      severity: llmRes.confidence > 0.9 ? 'CRITICAL' : 'HIGH',
+      severity,
       probabilisticSourceOfTruth: sourceOfTruth,
       status: 'OPEN',
     });

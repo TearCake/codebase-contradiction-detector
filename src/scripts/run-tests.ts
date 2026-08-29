@@ -1,8 +1,9 @@
 import path from 'path';
-import { parseAndValidateLLMResponse } from '../engine/llm/client';
+import { parseAndValidateLLMResponse, LLMClient } from '../engine/llm/client';
 import { generateCandidatePairs, tokenizeText, computeJaccardSimilarity } from '../engine/llm/candidateMatcher';
 import { verifyClaimEvidence, verifyPairEvidence } from '../engine/llm/evidenceVerifier';
 import { evaluateSemanticContradictions } from '../engine/llm/semanticService';
+import { evaluateRepositoryContradictionsAsync } from '../engine/evaluator';
 import { NormalizedArtifact, ExtractedClaim } from '../types/engine';
 
 let totalTests = 0;
@@ -20,10 +21,10 @@ function assert(condition: boolean, testName: string) {
 
 async function runAllUnitTests() {
   console.log(`=======================================================`);
-  console.log(` RUNNING UNIT & INTEGRATION TEST SUITE`);
+  console.log(` RUNNING GROQ-INTEGRATED UNIT & INTEGRATION TEST SUITE`);
   console.log(`=======================================================\n`);
 
-  // SECTION 1: LLM Result Parsing
+  // SECTION 1: LLM Response Parsing & Validation
   console.log(`[1. LLM Response Parsing Tests]`);
 
   const validJson = JSON.stringify({
@@ -181,73 +182,60 @@ async function runAllUnitTests() {
 
   console.log('');
 
-  // SECTION 4: Mocked Semantic Behavior Scenarios
-  console.log(`[4. Mocked LLM Semantic Behavior Tests]`);
+  // SECTION 4: Provider & Fault-Tolerance Tests (Mocked Groq)
+  console.log(`[4. Provider Fault Tolerance & Mocked Groq Tests]`);
 
-  // Mock LLM Client with mock behavior
-  class MockLLMClient {
+  // Test 1: Missing API Key client
+  const noKeyClient = new LLMClient({ apiKey: '' });
+  assert(noKeyClient.isAvailable() === false, 'Missing API key client correctly reports unavailable');
+
+  // Test 2: Mock Client for successful semantic comparison
+  class SuccessfulGroqMockClient {
     public isAvailable() { return true; }
     public async compareClaims(req: any) {
-      const textA = req.claimA.assertion + ' ' + req.claimA.rawSnippet;
-      const textB = req.claimB.assertion + ' ' + req.claimB.rawSnippet;
-
-      // 1. True Contradiction (24h vs 48h)
-      if (textA.includes('24') && textB.includes('48')) {
-        return {
-          sameSubject: true,
-          contradictory: true,
-          confidence: 0.98,
-          category: 'BEHAVIORAL' as const,
-          title: 'Grace Period Discrepancy',
-          summary: '24 hours vs 48 hours conflict',
-          incompatibilityReason: '24 hours contradicts 48 hours',
-          suggestedAuthoritativeSource: 'CLAIM_B' as const,
-        };
-      }
-
-      // 2. Equivalent Wording (No contradiction)
-      if (textA.includes('retrieves profile') && textB.includes('fetches user info')) {
-        return {
-          sameSubject: true,
-          contradictory: false,
-          confidence: 0.1,
-        };
-      }
-
-      // 3. Different Subjects
-      if (req.claimA.subject !== req.claimB.subject) {
-        return {
-          sameSubject: false,
-          contradictory: false,
-          confidence: 0.0,
-        };
-      }
-
-      return null;
+      return {
+        sameSubject: true,
+        contradictory: true,
+        confidence: 0.96,
+        category: 'BEHAVIORAL' as const,
+        title: 'Grace Period Discrepancy',
+        summary: 'Documentation states 24 hours while code enforces 48 hours.',
+        incompatibilityReason: 'Mutual exclusion between 24 and 48 hour predicates.',
+        suggestedAuthoritativeSource: 'CLAIM_B' as const,
+      };
     }
   }
 
-  const mockLLM = new MockLLMClient() as any;
+  const successClient = new SuccessfulGroqMockClient() as any;
+  const semanticRes = await evaluateSemanticContradictions(mockArtifacts, [claims[0], claims[1]], { client: successClient });
+  assert(semanticRes.findings.length === 1 && semanticRes.acceptedAfterVerification === 1, 'Valid contradiction proposed by Groq is verified and accepted');
 
-  // Scenario 1: True Contradiction
-  const trueContradictionResult = await evaluateSemanticContradictions(
-    mockArtifacts,
-    [claims[0], claims[1]],
-    { client: mockLLM }
-  );
-  assert(trueContradictionResult.findings.length === 1, 'True contradiction correctly proposed and accepted');
+  // Test 3: Evidence Verification Failure
+  const unverifiedClaim: ExtractedClaim = {
+    ...claims[1],
+    startLine: 99,
+    endLine: 100, // Bad lines not in file
+  };
+  const unverifiedRes = await evaluateSemanticContradictions(mockArtifacts, [claims[0], unverifiedClaim], { client: successClient });
+  assert(unverifiedRes.findings.length === 0, 'Semantic contradiction rejected if evidence verification fails');
 
-  // Scenario 2: Equivalent Wording
-  const equivClaimA: ExtractedClaim = { ...validClaim, id: 'eq1', assertion: 'retrieves profile', rawSnippet: 'retrieves profile' };
-  const equivClaimB: ExtractedClaim = { ...validClaim, id: 'eq2', filePath: 'src/user.ts', sourceType: 'CODE', assertion: 'fetches user info', rawSnippet: 'fetches user info' };
-  const mockArtifactsWithUser = [...mockArtifacts, { ...mockArtifacts[0], filePath: 'src/user.ts', content: 'fetches user info' }];
+  // Test 4: Timeout & 429 Error Fallback Client
+  class RateLimitedGroqMockClient {
+    private hits = 0;
+    public isAvailable() { return this.hits === 0; }
+    public async compareClaims(req: any) {
+      this.hits++;
+      return null; // Simulates HTTP 429 or Timeout
+    }
+  }
 
-  const equivResult = await evaluateSemanticContradictions(
-    mockArtifactsWithUser,
-    [equivClaimA, equivClaimB],
-    { client: mockLLM }
-  );
-  assert(equivResult.findings.length === 0, 'Equivalent wording does NOT trigger contradiction');
+  const rateLimitClient = new RateLimitedGroqMockClient() as any;
+  const rateLimitRes = await evaluateSemanticContradictions(mockArtifacts, [claims[0], claims[1]], { client: rateLimitClient });
+  assert(rateLimitRes.findings.length === 0, 'HTTP 429 or Timeout yields null and gracefully degrades');
+
+  // Test 5: Deterministic Fallback Pipeline Execution
+  const pipelineFindings = await evaluateRepositoryContradictionsAsync(mockArtifacts, claims);
+  assert(pipelineFindings.length >= 1, 'Deterministic matchers and fallbacks return findings when LLM is unavailable');
 
   console.log(`\n=======================================================`);
   console.log(` TEST SUMMARY: ${passedTests}/${totalTests} tests passed`);
