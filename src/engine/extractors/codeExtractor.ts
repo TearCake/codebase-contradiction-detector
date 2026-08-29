@@ -108,7 +108,7 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
           endLine,
           sourceType: artifact.artifactType,
           rawSnippet: node.getText().slice(0, 150),
-          subject: `${method} ${routePath}`,
+          subject: `route:${method} ${routePath}`,
           assertion: `Route registered: ${method} ${routePath}`,
           symbolName: routePath,
           metadata: { method, routePath, kind: 'ROUTE_DEFINITION' },
@@ -131,7 +131,7 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
             endLine,
             sourceType: artifact.artifactType,
             rawSnippet: node.getText().slice(0, 150),
-            subject: `SCHEMA_FIELD:${fieldName}`,
+            subject: `schema:${fieldName}`,
             assertion: `Zod schema requires field ${fieldName}`,
             symbolName: fieldName,
             metadata: { fieldName, required: true, kind: 'ZOD_SCHEMA_REQUIREMENT' },
@@ -140,7 +140,7 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
       }
     }
 
-    // Check for business logic grace period checks
+    // Generic threshold / logic check in IfStatement
     if (node.getKind() === SyntaxKind.IfStatement) {
       const ifText = node.getText();
       const thresholdMatch = ifText.match(/([a-zA-Z0-9_]+)\s*(>|<|>=|<=|==|===)\s*(\d+)/);
@@ -151,21 +151,19 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
         const startLine = node.getStartLineNumber();
         const endLine = node.getEndLineNumber();
 
-        if (paramName.toLowerCase().includes('hour') || paramName.toLowerCase().includes('grace')) {
-          claims.push({
-            id: `claim-${artifact.filePath}-logic-${startLine}`,
-            artifactId: artifact.id,
-            filePath: artifact.filePath,
-            startLine,
-            endLine,
-            sourceType: artifact.artifactType,
-            rawSnippet: ifText.slice(0, 180),
-            subject: 'cancellation_grace_period',
-            assertion: `Cancellation threshold check: ${paramName} ${operator} ${value}`,
-            symbolName: paramName,
-            metadata: { paramName, operator, value, kind: 'BUSINESS_LOGIC_THRESHOLD' },
-          });
-        }
+        claims.push({
+          id: `claim-${artifact.filePath}-logic-${startLine}`,
+          artifactId: artifact.id,
+          filePath: artifact.filePath,
+          startLine,
+          endLine,
+          sourceType: artifact.artifactType,
+          rawSnippet: ifText.slice(0, 180),
+          subject: `logic:${paramName}`,
+          assertion: `Threshold check on ${paramName}: ${paramName} ${operator} ${value}`,
+          symbolName: paramName,
+          metadata: { paramName, operator, value, kind: 'BUSINESS_LOGIC_THRESHOLD' },
+        });
       }
     }
 
@@ -192,7 +190,7 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
           endLine,
           sourceType: artifact.artifactType,
           rawSnippet: node.getParent()?.getText().slice(0, 100) || text,
-          subject: `ENV_VAR:${envVarName}`,
+          subject: `env:${envVarName}`,
           assertion: `Code references env variable ${envVarName}`,
           symbolName: envVarName,
           metadata: { envVarName, kind: 'ENV_REFERENCE' },
@@ -205,5 +203,5 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
   artifact.extracted.imports = imports;
   artifact.extracted.routes = routes;
   artifact.extracted.envRefs = envRefs;
-  artifact.extracted.claims.push(...claims);
+  artifact.extracted.claims = claims;
 }

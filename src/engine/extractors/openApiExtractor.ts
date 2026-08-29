@@ -69,7 +69,7 @@ export function extractOpenApiArtifacts(artifact: NormalizedArtifact): void {
             rawSnippet,
           });
 
-          // Claim representations
+          // Generic Endpoint claim
           claims.push({
             id: `claim-${artifact.filePath}-openapi-${method}-${pathKey}`,
             artifactId: artifact.id,
@@ -78,31 +78,12 @@ export function extractOpenApiArtifacts(artifact: NormalizedArtifact): void {
             endLine,
             sourceType: 'SPEC',
             rawSnippet,
-            subject: `${method} ${pathKey}`,
+            subject: `route:${method} ${pathKey}`,
             assertion: `OpenAPI spec declares endpoint: ${method} ${pathKey}`,
             metadata: { method, routePath: pathKey, kind: 'OPENAPI_ROUTE' },
           });
 
-          // Grace Period checks in description
-          const specDesc = JSON.stringify(endpointObj);
-          const graceMatch = specDesc.match(/(\d+)\s*hours/i);
-          if (graceMatch) {
-            const hours = parseInt(graceMatch[1], 10);
-            claims.push({
-              id: `claim-${artifact.filePath}-openapi-grace-${method}-${pathKey}`,
-              artifactId: artifact.id,
-              filePath: artifact.filePath,
-              startLine: lineIndex,
-              endLine: lineIndex + 10,
-              sourceType: 'SPEC',
-              rawSnippet,
-              subject: 'cancellation_grace_period',
-              assertion: `OpenAPI specifies grace period threshold of ${hours} hours`,
-              metadata: { hours, kind: 'OPENAPI_GRACE_PERIOD' },
-            });
-          }
-
-          // Field requirement claims
+          // Generic Field requirement claims
           if (jsonSchema && jsonSchema.properties) {
             const reqSet = new Set(requiredFields);
             for (const fieldName of Object.keys(jsonSchema.properties)) {
@@ -115,7 +96,7 @@ export function extractOpenApiArtifacts(artifact: NormalizedArtifact): void {
                 endLine: lineIndex + 15,
                 sourceType: 'SPEC',
                 rawSnippet: `Field '${fieldName}' in OpenAPI schema. Required: ${isRequired}`,
-                subject: `SCHEMA_FIELD:${fieldName}`,
+                subject: `schema:${method} ${pathKey}:${fieldName}`,
                 assertion: `OpenAPI declares field '${fieldName}' is ${isRequired ? 'REQUIRED' : 'OPTIONAL'}`,
                 symbolName: fieldName,
                 metadata: { fieldName, required: isRequired, kind: 'OPENAPI_FIELD_REQUIREMENT' },
@@ -130,5 +111,5 @@ export function extractOpenApiArtifacts(artifact: NormalizedArtifact): void {
   }
 
   artifact.extracted.openApiEndpoints = openApiEndpoints;
-  artifact.extracted.claims.push(...claims);
+  artifact.extracted.claims = claims;
 }

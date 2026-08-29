@@ -25,24 +25,8 @@ export function extractTestArtifacts(artifact: NormalizedArtifact): void {
         });
       }
     }
-
-    // Match status assertions e.g. expect(response.status).toBe(403)
-    if (line.includes('status') && line.includes('403')) {
-      claims.push({
-        id: `claim-${artifact.filePath}-test-status-${lineNum}`,
-        artifactId: artifact.id,
-        filePath: artifact.filePath,
-        startLine: lineNum,
-        endLine: lineNum,
-        sourceType: 'TEST',
-        rawSnippet: trimmed,
-        subject: 'EXPIRED_TOKEN_RESPONSE',
-        assertion: `Test asserts expired tokens return HTTP 403 Forbidden`,
-        metadata: { statusCode: 403, kind: 'TEST_STATUS_ASSERTION' },
-      });
-    }
   });
 
   artifact.extracted.testItems = testItems;
-  artifact.extracted.claims.push(...claims);
+  artifact.extracted.claims = claims;
 }

@@ -85,7 +85,7 @@ function evaluateGenericBehavioralContradictions(
   claims: ExtractedClaim[]
 ): ContradictionFinding[] {
   const findings: ContradictionFinding[] = [];
-  const candidatePairs = generateCandidatePairs(claims, 30);
+  const candidatePairs = generateCandidatePairs(claims, 50);
 
   candidatePairs.forEach((pair, idx) => {
     const textA = `${pair.claimA.assertion} ${pair.claimA.rawSnippet}`;

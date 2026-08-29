@@ -65,7 +65,7 @@ export function extractMarkdownArtifacts(artifact: NormalizedArtifact): void {
         rawSnippet: trimmed,
       });
 
-      // Claim Extraction from markdown paragraphs
+      // Generic Claim Extraction from markdown paragraphs
       // 1. Endpoint path mentions e.g., `POST /api/v1/auth/login`
       const routeMatch = line.match(/(POST|GET|PUT|DELETE|PATCH)\s+(\/api\/[a-zA-Z0-9_\/]+)/i);
       if (routeMatch) {
@@ -80,34 +80,14 @@ export function extractMarkdownArtifacts(artifact: NormalizedArtifact): void {
           endLine: lineNum,
           sourceType: 'DOCS',
           rawSnippet: trimmed,
-          subject: `${method} ${routePath}`,
+          subject: `route:${method} ${routePath}`,
           assertion: `Documentation claims endpoint exists at: ${method} ${routePath}`,
           symbolName: routePath,
           metadata: { method, routePath, kind: 'DOC_ROUTE_CLAIM' },
         });
       }
 
-      // 2. Cancellation / Grace Period statements e.g., "within 24 hours"
-      if (line.toLowerCase().includes('cancel') || line.toLowerCase().includes('refund')) {
-        const hoursMatch = line.match(/(\d+)\s*hours/i);
-        if (hoursMatch) {
-          const hours = parseInt(hoursMatch[1], 10);
-          claims.push({
-            id: `claim-${artifact.filePath}-doc-grace-${lineNum}`,
-            artifactId: artifact.id,
-            filePath: artifact.filePath,
-            startLine: lineNum,
-            endLine: lineNum,
-            sourceType: 'DOCS',
-            rawSnippet: trimmed,
-            subject: 'cancellation_grace_period',
-            assertion: `Documentation claims refund window is ${hours} hours`,
-            metadata: { hours, kind: 'DOC_GRACE_PERIOD_CLAIM' },
-          });
-        }
-      }
-
-      // 3. Env var key mentions e.g. ENABLE_RATE_LIMITING=true
+      // 2. Env var key mentions e.g. ENABLE_RATE_LIMITING=true
       const envMatch = line.match(/([A-Z0-9_]{3,})=([a-zA-Z0-9_]+)/);
       if (envMatch) {
         const key = envMatch[1];
@@ -120,31 +100,15 @@ export function extractMarkdownArtifacts(artifact: NormalizedArtifact): void {
           endLine: lineNum,
           sourceType: 'DOCS',
           rawSnippet: trimmed,
-          subject: `ENV_VAR:${key}`,
+          subject: `env:${key}`,
           assertion: `Documentation references environment setting ${key}=${value}`,
           symbolName: key,
           metadata: { key, value, kind: 'DOC_ENV_CLAIM' },
-        });
-      }
-
-      // 4. HTTP status codes e.g. 401 Unauthorized for expired tokens
-      if (line.includes('401') && line.toLowerCase().includes('expired')) {
-        claims.push({
-          id: `claim-${artifact.filePath}-doc-status-${lineNum}`,
-          artifactId: artifact.id,
-          filePath: artifact.filePath,
-          startLine: lineNum,
-          endLine: lineNum,
-          sourceType: 'DOCS',
-          rawSnippet: trimmed,
-          subject: 'EXPIRED_TOKEN_RESPONSE',
-          assertion: `Documentation claims expired tokens return HTTP 401 Unauthorized`,
-          metadata: { statusCode: 401, kind: 'DOC_STATUS_CODE_CLAIM' },
         });
       }
     }
   });
 
   artifact.extracted.markdownSections = markdownSections;
-  artifact.extracted.claims.push(...claims);
+  artifact.extracted.claims = claims;
 }

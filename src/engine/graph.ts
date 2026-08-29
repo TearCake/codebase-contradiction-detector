@@ -165,9 +165,14 @@ export function buildRepositoryContextGraph(artifacts: NormalizedArtifact[]): {
       fileClaims.push(claim);
     });
 
-    // Save claims into artifact extracted structure and main list
-    artifact.extracted.claims = fileClaims;
-    claims.push(...fileClaims);
+    // Merge claims extracted during extractArtifactInformation with fileClaims
+    const existingClaimsMap = new Map<string, ExtractedClaim>();
+    artifact.extracted.claims.forEach((c) => existingClaimsMap.set(c.id, c));
+    fileClaims.forEach((c) => existingClaimsMap.set(c.id, c));
+
+    const combinedFileClaims = Array.from(existingClaimsMap.values());
+    artifact.extracted.claims = combinedFileClaims;
+    claims.push(...combinedFileClaims);
 
     // Build Nodes & Edges for Claims
     fileClaims.forEach((claim) => {

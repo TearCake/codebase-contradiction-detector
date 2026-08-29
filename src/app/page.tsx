@@ -43,8 +43,8 @@ function formatSubjectLabel(subject: string): string {
   if (subject.startsWith('route:')) return subject.replace('route:', 'Route ');
   if (subject.startsWith('env:')) return subject.replace('env:', 'Config Key ');
   if (subject.startsWith('schema:')) return subject.replace('schema:', 'Schema ');
-  if (subject === 'cancellation_grace_period' || subject === 'domain:user_cancellation_period') return 'Cancellation Grace Period';
-  if (subject === 'domain:auth_endpoint' || subject === 'EXPIRED_TOKEN_RESPONSE') return 'Authentication Endpoint';
+  if (subject.startsWith('logic:')) return subject.replace('logic:', 'Logic Rule: ');
+  if (subject.startsWith('topic:')) return subject.replace('topic:', 'Topic: ');
 
   return subject.replace(/^[a-z_]+:/i, '').replace(/_/g, ' ');
 }

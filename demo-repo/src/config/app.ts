@@ -6,4 +6,5 @@ export const config = {
   // System reads RATE_LIMIT_ENABLED variable name
   isRateLimitingEnabled: process.env.RATE_LIMIT_ENABLED === 'true',
   maxRedisConn: process.env.MAX_REDIS_CONNECTIONS || 5,
+  dbTimeout: process.env.DATABASE_TIMEOUT_MS || 5000,
 };
