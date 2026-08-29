@@ -191,6 +191,16 @@ export interface RepositoryContextGraph {
   edges: ContextGraphEdge[];
 }
 
+export interface AnalysisPipelineResult {
+  scanResult: any;
+  artifacts: NormalizedArtifact[];
+  summary: RepositorySummary;
+  graph: RepositoryContextGraph;
+  claims: ExtractedClaim[];
+  findings: ContradictionFinding[];
+  healthScore: number;
+}
+
 // Retained for legacy/backward compatibility
 export interface IngestedFile {
   filePath: string;
