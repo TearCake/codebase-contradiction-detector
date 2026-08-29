@@ -16,6 +16,9 @@ import {
   Sparkles,
   ArrowRight,
   ExternalLink,
+  Link as LinkIcon,
+  ArrowDown,
+  ArrowUp
 } from 'lucide-react';
 import { MOCK_ANALYSIS_RESULT } from '../engine/mockData';
 import { AnalysisPipelineResult } from '../types/engine';
@@ -392,34 +395,147 @@ export default function Dashboard() {
           {/* Tab 2: Context Graph Explorer */}
           {activeTab === 'GRAPH' && (
             <div className="bg-slate-900/90 border border-slate-800 rounded-xl p-6">
-              <h3 className="text-sm font-semibold text-slate-200 mb-4 flex items-center gap-2">
-                <GitBranch className="w-4 h-4 text-sky-400" />
-                Lightweight Context Graph ({analysis.graph.nodes.length} Nodes, {analysis.graph.edges.length} Edges)
-              </h3>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {analysis.graph.nodes.map((node) => (
-                  <div
-                    key={node.id}
-                    className="p-3 bg-slate-950 border border-slate-800 rounded-lg flex items-center justify-between"
-                  >
-                    <div className="truncate">
-                      <span
-                        className={`text-[10px] font-mono px-1.5 py-0.5 rounded mr-2 ${
-                          node.type === 'ARTIFACT'
-                            ? 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
-                            : node.type === 'CLAIM'
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                            : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        }`}
-                      >
-                        {node.type}
-                      </span>
-                      <span className="text-xs font-mono text-slate-200 truncate">{node.label}</span>
-                    </div>
+              <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-800">
+                <h3 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+                  <GitBranch className="w-5 h-5 text-sky-400" />
+                  Relationship Explorer
+                </h3>
+                <div className="flex space-x-6 text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-indigo-400"></div>
+                    <span className="text-slate-400 font-medium">Artifacts: <span className="text-slate-200">{analysis.graph.nodes.filter(n => n.type === 'ARTIFACT').length}</span></span>
                   </div>
-                ))}
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span className="text-slate-400 font-medium">Claims: <span className="text-slate-200">{analysis.graph.nodes.filter(n => n.type === 'CLAIM').length}</span></span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-amber-400"></div>
+                    <span className="text-slate-400 font-medium">Subjects: <span className="text-slate-200">{analysis.graph.nodes.filter(n => n.type === 'SUBJECT').length}</span></span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2 h-2 rounded-full bg-rose-400"></div>
+                    <span className="text-slate-400 font-medium">Contradictions: <span className="text-slate-200">{analysis.findings.length}</span></span>
+                  </div>
+                </div>
               </div>
+
+              {!selectedFindingId ? (
+                <div className="flex flex-col items-center justify-center py-24 text-slate-500">
+                  <GitBranch className="w-12 h-12 mb-4 text-slate-700" />
+                  <p className="text-lg">Select a contradiction to explore its context graph</p>
+                  <button 
+                    onClick={() => setActiveTab('FINDINGS')}
+                    className="mt-4 px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-sm transition-colors"
+                  >
+                    View Contradictions List
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {(() => {
+                    const finding = analysis.findings.find(f => f.id === selectedFindingId);
+                    if (!finding) return null;
+
+                    const subjectNode = analysis.graph.nodes.find(n => n.id === `subject:${finding.subject}`);
+                    const isLogical = subjectNode?.data?.isLogical === true;
+
+                    const conflictEdges = analysis.graph.edges.filter(e => 
+                      e.relation === 'CONFLICTS_WITH' && 
+                      finding.conflictingClaims.some(c => c.id === e.source) &&
+                      finding.conflictingClaims.some(c => c.id === e.target)
+                    );
+                    
+                    return (
+                      <div className="bg-slate-950 border border-slate-800 rounded-lg p-6 relative">
+                        {isLogical && (
+                          <div className="mb-10 text-center">
+                            <h4 className="text-rose-400 font-mono text-sm mb-2 uppercase tracking-widest border border-rose-500/20 bg-rose-500/10 inline-block px-3 py-1 rounded">Logical Mismatch</h4>
+                            <div className="text-lg font-bold text-slate-300 flex items-center justify-center space-x-2">
+                              <span>Expected vs Actual Discrepancy</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Top Conflict Bar */}
+                        <div className="w-full mb-10 flex flex-col items-center relative">
+                          <div className="absolute top-1/2 left-10 right-10 h-px border-t-2 border-dashed border-rose-500/50 z-0"></div>
+                          <div className="bg-slate-950 border border-rose-500/50 rounded-lg px-6 py-2 shadow-lg flex items-center space-x-3 z-10">
+                            <AlertTriangle className="w-5 h-5 text-rose-500" />
+                            <span className="text-sm font-bold text-rose-400 tracking-wider font-mono">
+                              CONFLICTS_WITH
+                            </span>
+                            <span className="text-xs text-slate-400 bg-slate-900 px-2 py-0.5 rounded-full">{conflictEdges.length} edges</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row items-stretch justify-center gap-6 relative z-10">
+                          {finding.conflictingClaims.map((claim, idx) => {
+                            return (
+                              <div key={idx} className="flex-1 flex flex-col items-center relative">
+                                {/* Artifact Node */}
+                                <div className="w-full bg-slate-900 border border-indigo-500/30 rounded-lg p-4 shadow-lg flex flex-col items-center text-center relative">
+                                  <div className="absolute -top-3 px-2 bg-slate-950 text-[10px] uppercase font-bold text-indigo-400 tracking-wider border border-indigo-500/30 rounded">Source Artifact</div>
+                                  <FileCode2 className="w-8 h-8 text-indigo-400 mb-2 opacity-80" />
+                                  <span className="font-mono text-sm text-slate-200 break-all">{claim.filePath}</span>
+                                  <span className="text-xs text-slate-500 mt-1 uppercase font-semibold">{claim.sourceType}</span>
+                                </div>
+
+                                {/* Contains Edge */}
+                                <div className="h-12 w-px bg-slate-700 relative flex items-center justify-center my-2">
+                                  <ArrowDown className="w-4 h-4 text-slate-500 absolute -bottom-1 bg-slate-950" />
+                                  <div className="absolute left-3 bg-slate-950 px-2 text-[10px] font-mono text-slate-500 border border-slate-800 rounded whitespace-nowrap">
+                                    CONTAINS
+                                  </div>
+                                </div>
+
+                                {/* Claim Node */}
+                                <div className="w-full bg-slate-900 border border-emerald-500/30 rounded-lg p-4 shadow-lg flex flex-col items-center text-center relative flex-1">
+                                  <div className="absolute -top-3 px-2 bg-slate-950 text-[10px] uppercase font-bold text-emerald-400 tracking-wider border border-emerald-500/30 rounded">Extracted Claim</div>
+                                  <p className="text-sm text-slate-300 font-medium italic mb-3 mt-2">"{claim.assertion}"</p>
+                                  <div className="mt-auto bg-slate-950 border border-slate-800 rounded px-2 py-1 text-xs font-mono text-emerald-400/80">
+                                    Lines: {claim.startLine}-{claim.endLine}
+                                  </div>
+                                </div>
+
+                                {/* Addresses Edge */}
+                                <div className="h-12 w-px bg-slate-700 relative flex items-center justify-center my-2">
+                                  <ArrowDown className="w-4 h-4 text-slate-500 absolute -bottom-1 bg-slate-950" />
+                                  <div className="absolute left-3 bg-slate-950 px-2 text-[10px] font-mono text-slate-400 border border-slate-700 rounded whitespace-nowrap">
+                                    ADDRESSES
+                                  </div>
+                                </div>
+
+                                {/* Subject Node for Case B (Logical) */}
+                                {isLogical && (
+                                  <div className="w-full bg-slate-900 border border-amber-500/30 rounded-lg p-4 shadow-lg flex flex-col items-center text-center relative mt-auto">
+                                    <div className="absolute -top-3 px-2 bg-slate-950 text-[10px] uppercase font-bold text-amber-400 tracking-wider border border-amber-500/30 rounded">Subject</div>
+                                    <Layers className="w-6 h-6 text-amber-400 mb-2 opacity-80" />
+                                    <span className="font-mono text-xs text-slate-200 break-all">{claim.subject}</span>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Shared Subject for Case A */}
+                        {!isLogical && (
+                          <div className="mt-6 flex flex-col items-center">
+                            <div className="bg-slate-900 border border-amber-500/50 rounded-lg p-5 shadow-lg flex flex-col items-center text-center relative z-10 min-w-[300px]">
+                              <div className="absolute -top-3 px-3 bg-slate-950 text-[10px] uppercase font-bold text-amber-400 tracking-widest border border-amber-500/40 rounded">
+                                Shared Subject
+                              </div>
+                              <Layers className="w-8 h-8 text-amber-400 mb-2 opacity-80" />
+                              <span className="font-mono text-lg text-slate-200">{finding.subject}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           )}
         </div>
