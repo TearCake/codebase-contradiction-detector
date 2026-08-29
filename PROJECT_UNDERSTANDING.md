@@ -1,8 +1,8 @@
 # PROJECT_UNDERSTANDING.md: Codebase Contradiction Detector
 
-**BuildSprint 2026 Hackathon Blueprint & Technical Specification**
+**BuildSprint 2026 Hackathon Blueprint & Technical Specification**  
 **Role:** Lead Architect, Technical Investigator & Product Researcher  
-**Status:** Approved for Implementation (Research & Architecture Phase Complete)
+**Status:** Approved for Implementation (Refined Blueprint)
 
 ---
 
@@ -15,10 +15,10 @@
 * **Delivery Objective:** A working, highly persuasive technical demo with realistic execution. Full production hardening is not required, but strict reliability for demo scenarios is mandatory.
 
 ### 1.2 Judging Criteria & Strategic Weighting
-1. **Idea & Innovation (30%):** Requires a fundamental shift from simple "stale documentation checking" to multi-source semantic and structural contradiction reasoning across software artifacts.
-2. **Execution (30%):** Robust parsing, low false-positive rate, deterministic evidence verification, clean UI presentation, and execution/AST backing.
+1. **Idea & Innovation (30%):** Requires a fundamental shift from simple "stale documentation checking" to multi-source semantic and structural claim reasoning across software artifacts.
+2. **Execution (30%):** Robust parsing, low false-positive rate, deterministic safety verification layer, clean UI presentation, and AST backing.
 3. **Usefulness & Impact (25%):** High ROI for developers, tech leads, and maintainers during PR reviews, refactoring, and onboarding.
-4. **Presentation & Demo (10%):** A crisp, 2-minute visual narrative showing multi-source disagreement detection with immediate visual proof.
+4. **Presentation & Demo (10%):** A crisp, 2-minute visual narrative showing multi-source claim disagreement detection with immediate visual proof.
 5. **Build in Public (5%):** Clean Git history, documented LatentCode harness development steps, and session logs.
 
 ---
@@ -32,16 +32,14 @@ Modern software codebases maintain state and requirements across disparate, disj
 * Human documentation (READMEs, JSDoc/Docstrings, Architecture Decision Records (ADRs), Wiki pages)
 * Operational state configurations (`.env.example`, Dockerfiles, Helm charts, CI/CD workflows)
 * Verification artifacts (Unit tests, integration tests, E2E tests, mock fixtures)
-* Historical records (Git commit logs, PR descriptions, issue comments)
 
 Over time, code evolves faster than surrounding artifacts, leading to **software truth fragmentation**. 
 
 ### 2.2 Concrete Examples of Truth Disagreement
-* **API Route Disagreement:** `README.md` documents `POST /v1/users/cancellation`, OpenAPI spec lists `POST /api/v1/users/cancel`, while Express code implements `POST /v1/account/cancel`.
-* **Business Logic Window Disagreement:** README states *"Users can cancel subscriptions within 24 hours"*, the backend `SubscriptionService.ts` checks `hours <= 48`, the React frontend displays `"Cancel within 72 hours"`, and the Jest test asserts `hours <= 24`.
-* **Configuration Drift:** `.env.example` lists `MAX_REDIS_CONNECTIONS=10`, while `config.py` raises an error if `MAX_REDIS_CONNECTIONS > 5`.
-* **Schema Requirement Disagreement:** OpenAPI spec marks `phone_number` as optional, whereas backend validation (`zod` schema) throws an unhandled `400 Bad Request` if `phone_number` is omitted.
-* **Architectural Role Inversion:** ADR-004 declares *"Redis is strictly a temporary volatile cache"*, but `QueueWorker.ts` persists mission-critical billing transaction logs to Redis without fallback.
+* **API Route Disagreement:** `README.md` claims `POST /v1/users/cancellation`, OpenAPI spec lists `POST /api/v1/users/cancel`, while Express code implements `POST /v1/account/cancel`.
+* **Business Logic Window Disagreement:** README claims *"Users can cancel subscriptions within 24 hours"*, the backend `SubscriptionService.ts` checks `hours <= 48`, the React frontend displays `"Cancel within 72 hours"`, and the Jest test asserts `hours <= 24`.
+* **Configuration Drift:** `.env.example` claims `MAX_REDIS_CONNECTIONS=10`, while `config.py` raises an error if `MAX_REDIS_CONNECTIONS > 5`.
+* **Schema Requirement Disagreement:** OpenAPI spec claims `phone_number` is optional, whereas backend validation (`zod` schema) throws an unhandled `400 Bad Request` if `phone_number` is omitted.
 
 ---
 
@@ -49,12 +47,12 @@ Over time, code evolves faster than surrounding artifacts, leading to **software
 
 Before building, we critically evaluate and attempt to disprove the premise of a "Codebase Contradiction Detector".
 
-### 3.1 Ten Critical Questions & Rigorous Answers
+### 3.1 Critical Questions & Rigorous Answers
 
 #### Q1: What exactly counts as a contradiction vs. a wording difference?
-* **Answer:** A contradiction requires **mutually exclusive semantic assertions** on the exact same domain entity or parameter.
+* **Answer:** A contradiction requires **mutually exclusive claims** on the exact same domain entity or parameter.
   * *Wording difference (NOT a contradiction):* "Retrieves user profile" vs. "Fetches profile info for a user".
-  * *Contradiction:* "Parameter `timeout` is in milliseconds" (Doc) vs. `setTimeout(fn, timeout * 1000)` (Code treating it as seconds).
+  * *Contradiction:* Claim "Parameter `timeout` is in milliseconds" (Doc) vs. Claim `setTimeout(fn, timeout * 1000)` (Code treating input as seconds).
 
 #### Q2: What is merely missing or incomplete documentation vs. a true contradiction?
 * **Answer:** Missing documentation is silence. A contradiction requires two or more **active claims** that cannot simultaneously be true in the runtime or operational domain.
@@ -69,26 +67,20 @@ Before building, we critically evaluate and attempt to disprove the premise of a
 * **Answer:** Structural and type mismatches: Route string comparisons, env key presence, regex parameter extractions, TypeScript type vs. OpenAPI type discrepancies, and missing exported function arguments.
 
 #### Q5: Which require semantic / LLM reasoning?
-* **Answer:** Business logic rule mismatches, plain-text documentation claims vs. code implementation, and intent verification (e.g., ADR intent vs. code implementation details).
+* **Answer:** Extracting natural language claims from Markdown/JSDoc and comparing business logic rule assertions against AST-extracted logic representations.
 
-#### Q6: Which contradictions can be proven by execution or tests?
-* **Answer:** API response shapes, HTTP status codes, function output asserts, and environment variable parsing exceptions.
-
-#### Q7: What would create massive false positives?
+#### Q6: What would create massive false positives?
 * **Answer:** 
   * Analyzing deprecated code/docs without lifecycle awareness.
   * Treating test mocks or fixtures as production code truth.
-  * Mismatching variable names across contexts (e.g., confusing `client_timeout` in Redis with `client_timeout` in HTTP client).
+  * Mismatching variable names across contexts.
   * Ignoring environment overlays (`config.dev.json` vs `config.prod.json`).
 
-#### Q8: What would make developers immediately ignore this tool?
-* **Answer:** If 80% of alerts are noise like *"README description is missing a parameter description"*. The tool MUST focus exclusively on **contradictions with high impact** and back every alert with direct source code/doc evidence.
+#### Q7: How do we prevent developer distrust?
+* **Answer:** The engine MUST focus exclusively on **substantive claim contradictions** with high impact, backed by direct source code/doc evidence proofs, validated by a deterministic safety layer.
 
-#### Q9: What part of this idea is genuinely novel?
-* **Answer:** **Cross-artifact n-way truth synthesis**. Existing tools check 1:1 relationships (e.g., OpenAPI vs. Route). Our system correlates **N sources simultaneously** (Docs + Schema + Frontend + Backend + Tests + Config) using a **Repository Context Graph (RCG)**.
-
-#### Q10: Which parts are already solved by existing static analysis?
-* **Answer:** Linters (ESLint), type checkers (tsc), and OpenAPI validators (Spectral) already solve single-file syntax and basic schema validation. We MUST NOT rebuild linters; we must build the **cross-domain semantic referee**.
+#### Q8: What part of this idea is genuinely novel?
+* **Answer:** **Cross-artifact multi-source claim synthesis**. Existing tools check 1:1 relationships (e.g., OpenAPI vs. Route). Our system correlates **N sources simultaneously** using a **Lightweight Context Graph** anchored on extracted **Claims**.
 
 ---
 
@@ -99,41 +91,41 @@ Before building, we critically evaluate and attempt to disprove the premise of a
 | Tool / Project | Primary Function | Input Sources | Detection Mechanism | Limitations / Gaps | How We Differ |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Spectral / Stoplight** | OpenAPI / AsyncAPI linting | OpenAPI specs | Deterministic JSON/YAML rules | Only checks spec formatting/conventions; ignores backend implementation code | We compare OpenAPI specs directly against AST route definitions & Zod validation |
-| **DocuGardener / FluentDocs** | Documentation staleness detection | Markdown files + Git history | Git commit timestamp heuristics | Assumes doc age = stale doc. Does NOT read code semantics to prove falsehood | We prove semantic falsehood by extracting explicit claims and matching against code AST |
+| **DocuGardener / FluentDocs** | Documentation staleness detection | Markdown files + Git history | Git commit timestamp heuristics | Assumes doc age = stale doc; does NOT analyze actual semantic claims | We prove falsehood by extracting explicit claims and verifying against AST via a safety layer |
 | **Drift / Drift.dev** | Architecture drift analysis | Code + Spec + DB | Static analysis heuristics | Focuses primarily on DB schema vs ORM; high setup friction | We offer zero-config instant multi-source scanning across code, config, docs, and tests |
-| **GenLint / Semantic Linters** | LLM-based code quality linting | Source code files | Prompted LLM review | Analyzes files in isolation; high hallucination rate; no graph context | We construct a Repository Context Graph first, using LLM strictly for claim extraction & comparison |
-| **CASCADE** | Code-spec consistency in research | C/C++ code + formal specs | Theorem proving / symbolic execution | Rigid, restricted to formal specs, slow, non-scalable to modern web apps | We bring semantic claim matching to modern web stacks (TypeScript, Python, REST/GraphQL) |
+| **GenLint / Semantic Linters** | LLM-based code quality linting | Source code files | Prompted LLM review | Analyzes files in isolation; high hallucination rate; no graph context | We construct a Lightweight Context Graph first, using LLM for claim extraction & deterministic validation as safety |
 
 ### 4.2 Our Substantive Differentiation Thesis
 We are **NOT** a documentation linter. We are a **Codebase Contradiction Engine**.
-1. **Multi-Source Evidence Matrix:** Every alert shows a 3+ way comparison (e.g., README vs. OpenAPI vs. Express Controller vs. React Hook).
-2. **Context Graph Pre-Filtering:** AST-driven graph extraction ensures LLMs evaluate only related symbols, reducing false positives by 90%.
-3. **Source of Truth Inference:** Automatically scores which source is likely correct based on git recency, execution path, and test coverage.
+1. **Central Claim Abstraction:** Every entity is analyzed via explicit, normalized claims extracted from artifacts.
+2. **Multi-Source Evidence Matrix:** Alerts show 3-way comparisons (e.g., README vs. OpenAPI vs. Express Controller).
+3. **Deterministic Safety Layer:** AST & schema parsing acts as the primary safety layer to validate LLM claim assertions and eliminate hallucinations.
+4. **Probabilistic Source of Truth Scoring:** Scores which source is likely correct using probabilistic heuristics (execution path, test coverage, recency).
 
 ---
 
 ## 5. Product Definition, Target Persona & Value Proposition
 
 ### 5.1 One-Sentence Product Definition
-> **Codebase Contradiction Detector is an automated repository intelligence engine that constructs a multi-artifact context graph to discover, prove, and resolve conflicting truths across source code, documentation, specifications, tests, and configuration files.**
+> **Codebase Contradiction Detector is an automated repository intelligence engine that constructs a lightweight context graph around claims to discover, prove, and highlight conflicting truths across source code, documentation, specifications, tests, and configuration files.**
 
 ### 5.2 Primary User
 * **The Tech Lead / Senior Full-Stack Engineer / Code Reviewer**
   * *Why:* They bear the burden of architecture drift, customer-reported API discrepancies, broken developer onboarding, and risky refactoring.
 
 ### 5.3 Core Job to Be Done (JTBD)
-> *"When I am reviewing PRs, onboarding to a repository, or auditing an API, I want to instantly identify where docs, tests, frontend code, and backend code disagree on system behavior, so I can eliminate hidden bugs and prevent developer confusion without manually cross-referencing files."*
+> *"When I am reviewing PRs, onboarding to a repository, or auditing an API, I want to instantly identify where docs, tests, frontend code, and backend code make contradictory claims about system behavior, so I can eliminate hidden bugs and prevent developer confusion without manually cross-referencing files."*
 
 ### 5.4 Core Value Proposition
-* **Zero False-Positive Target via Evidence Proofs:** Every alert presents verbatim quotes and line references from 2+ conflicting sources.
-* **Instant Onboarding Audit:** Scans a repository in < 30 seconds and renders an interactive **Truth Disagreement Map**.
-* **Automated Resolution Proposals:** Generates precise unified patches for code or documentation to align all sources to a single truth.
+* **Low False-Positive Rate via Evidence Proofs & Deterministic Safety:** Every alert presents verbatim quotes and line references from 2+ conflicting sources, validated by AST verification.
+* **Rapid Onboarding Audit:** Scans local repositories efficiently and renders an interactive **Truth Disagreement Map**.
+* **Probabilistic Truth Scoring:** Provides transparent likelihood scoring for source-of-truth candidates to guide resolution.
 
 ---
 
-## 6. Contradiction Taxonomy
+## 6. Contradiction Taxonomy & Scope Boundaries
 
-We classify codebase contradictions into 7 distinct categories:
+We classify codebase contradictions into core categories:
 
 ```
                       ┌─────────────────────────────────────────┐
@@ -145,69 +137,71 @@ We classify codebase contradictions into 7 distinct categories:
 ┌────────┴────────┐ ┌────────┴────────┐   ┌────────┴────────┐ ┌────────┴────────┐
 │  A. Structural  │ │  B. Behavioral  │   │ C. API / Spec   │ │D. Configuration │
 └─────────────────┘ └─────────────────┘   └─────────────────┘ └─────────────────┘
-         │                   │                     │                   │
-┌────────┴────────┐ ┌────────┴────────┐   ┌────────┴────────┐         │
-│   E. Testing    │ │ F. Architectural│   │  G. Historical  │─────────┘
-└─────────────────┘ └─────────────────┘   └─────────────────┘
+         │
+┌────────┴────────┐
+│   E. Testing    │
+└─────────────────┘
 ```
 
 ### 6.1 Taxonomy Detailed Breakdown
 
-| Category | Description & Example | Sources Involved | Detection Method | Confidence & Severity | False-Positive Risk | MVP? |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **A. Structural** | Route path mismatch: OpenAPI `/v1/user` vs Express `/api/users` | OpenAPI, Express/FastAPI AST | Deterministic (AST + Regex) | High Confidence / Medium Severity | Very Low | **MUST** |
-| **B. Behavioral** | Timeout parameter: README says "seconds", code passes value directly to `setTimeout` expecting "ms" | README, JSDoc, Code AST | Hybrid (LLM Claim Extraction + AST Verification) | High Confidence / High Severity | Low | **MUST** |
-| **C. API / Contract** | Required parameter mismatch: Zod schema `.nonempty()` vs OpenAPI `required: []` | Zod/TS interfaces, OpenAPI YAML | Deterministic (Parser comparison) | High Confidence / Critical Severity | Very Low | **MUST** |
-| **D. Configuration** | Env var drift: `.env.example` lists `PORT=8080`, `config.ts` defaults to `3000` or requires `HTTP_PORT` | `.env.example`, Dockerfile, `process.env` usage | Deterministic (AST Grep + Parser) | High Confidence / Medium Severity | Low | **MUST** |
-| **E. Testing** | Inverted test assertion: Doc states "returns 404 on missing user", Jest test asserts 200 with `null` body | Markdown docs, Jest/Vitest AST, Controller code | Hybrid (AST Assert Extraction + LLM comparison) | Medium-High Confidence / High Severity | Medium | **SHOULD** |
-| **F. Architectural** | Layer violation / pattern drift: Architecture doc forbids direct DB calls in React, but `UserProfile.tsx` invokes `prisma.user.findMany` | ADR Markdown, React AST, Prisma AST | Hybrid (Rule graph + AST analysis) | Medium Confidence / Medium Severity | Medium | **COULD** |
-| **G. Historical** | Commit log intent conflict: Commit message says "Deprecate legacy auth endpoint", but endpoint remains active without deprecation header | Git log, Code AST | Hybrid (Git history + AST search) | Low-Medium Confidence / Low Severity | High | **WONT (MVP)** |
+| Category | Description & Example | Sources Involved | Detection Method | Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **A. Structural** | Route path mismatch: OpenAPI `/v1/user` vs Express `/api/users` | OpenAPI, Express AST | Deterministic AST + Regex Matcher | **KEEP (MVP)** |
+| **B. Behavioral** | Timeout parameter claim: README claims "seconds", code treats input as "ms" | README, Code AST | Hybrid (LLM Claim Extraction + AST Verification) | **KEEP (MVP)** |
+| **C. API / Contract** | Required parameter mismatch: Zod schema `.nonempty()` vs OpenAPI `required: []` | Zod/TS interfaces, OpenAPI YAML | Deterministic Schema Parser | **KEEP (MVP)** |
+| **D. Configuration** | Env var drift: `.env.example` lists `PORT=8080`, `config.ts` reads `HTTP_PORT` | `.env.example`, Code AST | Deterministic AST Grep + Parser | **KEEP (MVP)** |
+| **E. Testing** | Inverted test assertion: Doc claims "returns 404", test asserts 200 with `null` body | Markdown docs, Test AST, Controller code | Hybrid (AST Assert Extraction + LLM Claim Compare) | **KEEP (MVP)** |
+| **F. Architectural** | Layer violation / pattern drift | ADR Markdown, React AST | Rule Graph + AST | **DEFER** |
+| **G. Historical** | Commit log intent conflict | Git log, Code AST | Git archaeology | **DEFER** |
 
 ---
 
-## 7. Formal Mental Model of a Contradiction
+## 7. Central Abstraction: The Claim & Contradiction Model
 
-To avoid noise and false positives, our engine adheres to a mathematical definition of a contradiction.
+To eliminate noise, our engine models all software artifacts as sets of explicit **Claims** over domain **Subjects**.
 
-### 7.1 Formal Mathematical Formulation
-A **Contradiction** $C$ exists if and only if there exists a tuple:
-$$C = \langle S, \mathcal{A}, \mathcal{B}, E_\mathcal{A}, E_\mathcal{B}, \phi \rangle$$
+### 7.1 Formal Claim Abstraction
+A **Claim** $K$ is a tuple representing an explicit assertion extracted from an artifact:
+$$K = \langle \mathcal{A}, S, P, E \rangle$$
 
 Where:
-1. $S$ is a **Shared Subject / Entity** (e.g., `POST /api/v1/checkout` or `MAX_SESSION_TIMEOUT`).
-2. $\mathcal{A}$ and $\mathcal{B}$ are distinct **Artifact Sources** (e.g., $\mathcal{A} = \text{README.md}$, $\mathcal{B} = \text{checkout.ts}$).
-3. $E_\mathcal{A}$ and $E_\mathcal{B}$ are **Extracted Evidence Statements** anchored by precise file paths and line numbers.
-4. $\phi$ is a **Semantic Incompatibility Proposition**: 
-$$\text{IsTrue}(E_\mathcal{A}(S)) \implies \neg \text{IsTrue}(E_\mathcal{B}(S))$$
+* $\mathcal{A}$ is the **Artifact Source** (e.g., `README.md`, `checkout.ts`, `openapi.yaml`).
+* $S$ is the **Subject / Domain Entity** (e.g., `POST /api/v1/checkout`, `cancellation_grace_period`, `MAX_REDIS_CONNECTIONS`).
+* $P$ is the **Normalized Assertion Predicate** (e.g., `grace_period_hours == 24`).
+* $E$ is the **Evidence Anchor** (exact file path, line numbers, and raw snippet).
+
+A **Contradiction** $C$ exists when two or more Claims $K_\mathcal{A}$ and $K_\mathcal{B}$ address the same Subject $S$ with mutually exclusive predicates:
+$$\phi(P_\mathcal{A}, P_\mathcal{B}) = \text{True} \quad \implies \quad K_\mathcal{A} \text{ conflicts with } K_\mathcal{B}$$
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                      CONTRADICTION FORMAL MODEL                        │
+│                   CENTRAL CLAIM & CONTRADICTION MODEL                   │
 │                                                                        │
-│   Shared Subject (S): "user_cancellation_period"                       │
+│   Subject (S): "user_cancellation_period"                              │
 │                                                                        │
-│   Source A: README.md (Lines 42-43)                                    │
-│   Claim A: "Users may cancel within 24 hours of purchase."             │
+│   Claim A [README.md: L42-43]:                                         │
+│     Predicate: cancellation_grace_period == 24 hours                   │
 │                                                                        │
-│   Source B: CancelService.ts (Lines 105-108)                           │
-│   Claim B: "if (hoursSincePurchase > 48) throw new Error('Expired');"  │
+│   Claim B [CancelController.ts: L105-108]:                             │
+│     Predicate: cancellation_grace_period == 48 hours                   │
 │                                                                        │
-│   Semantic Incompatibility: Claim A (24h) != Claim B (48h)             │
-│   ==> CONTRADICTION CONFIRMED (Confidence: 0.95, Severity: HIGH)       │
+│   Deterministic Safety Check: AST lines match code & line numbers.     │
+│   Probabilistic Truth Inference: Controller (0.75), README (0.25)     │
+│   ==> CONTRADICTION CONFIRMED                                          │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 7.2 Classification Rules (Distinguishing Types)
+### 7.2 Classification Rules
 * **True Contradiction:** Claims are mutually exclusive on subject $S$.
-* **Missing Information:** Source A makes claim $E_\mathcal{A}(S)$; Source B makes no mention of $S$.
-* **Stale Information:** Source A describes subject $S'$ which was renamed to $S$ in Source B, but no conflicting runtime logic exists.
-* **Harmless Wording Difference:** $E_\mathcal{A}(S)$ and $E_\mathcal{B}(S)$ map to the same underlying logical predicate despite differing natural language phrases.
+* **Missing Information:** Source A makes Claim $K_\mathcal{A}(S)$; Source B makes no claim on $S$.
+* **Harmless Wording Difference:** $K_\mathcal{A}(S)$ and $K_\mathcal{B}(S)$ map to equivalent logical predicates despite differing phraseology.
 
 ---
 
-## 8. Evidence-First Design & Finding Schema
+## 8. Evidence-First Finding Schema
 
-Every finding returned by the engine is backed by structured evidence. Below is the strict TypeScript interface and JSON schema for a Contradiction Finding.
+Every finding returned by the engine is centered on conflicting **Claims** backed by structured evidence proofs.
 
 ### 8.1 TypeScript Schema (`ContradictionFinding.ts`)
 
@@ -217,41 +211,36 @@ export type ContradictionCategory =
   | 'BEHAVIORAL' 
   | 'API_CONTRACT' 
   | 'CONFIGURATION' 
-  | 'TESTING' 
-  | 'ARCHITECTURAL' 
-  | 'HISTORICAL';
+  | 'TESTING';
 
 export type SeverityLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW';
 
-export interface EvidenceSource {
+export interface ExtractedClaim {
+  id: string;
   artifactId: string;        // e.g., "file:src/controllers/user.ts"
   filePath: string;          // e.g., "src/controllers/user.ts"
   startLine: number;
   endLine: number;
   sourceType: 'CODE' | 'DOCS' | 'SPEC' | 'CONFIG' | 'TEST';
   rawSnippet: string;        // Exact lines extracted
-  extractedClaim: string;    // Normalized statement or parsed rule
+  assertion: string;         // Normalized statement or parsed rule
   symbolName?: string;       // e.g., "cancelSubscription"
 }
 
 export interface ContradictionFinding {
-  id: string;                         // UUID or hash
+  id: string;                         // Unique finding identifier
   subject: string;                    // Domain entity / symbol under inspection
   category: ContradictionCategory;
-  title: string;                      // Short summary (e.g., "Cancellation Window Mismatch")
-  summary: string;                    // Detailed narrative explanation
-  sources: EvidenceSource[];          // 2 or more conflicting sources
-  incompatibilityReason: string;      // Formal statement of why claims conflict
-  confidenceScore: number;            // 0.00 to 1.00
+  title: string;                      // Short summary
+  summary: string;                    // Narrative explanation of contradiction
+  conflictingClaims: ExtractedClaim[];// 2 or more conflicting claims
+  incompatibilityReason: string;      // Formal statement of claim conflict
+  confidenceScore: number;            // Probabilistic score (0.00 to 1.00)
   severity: SeverityLevel;
-  likelySourceOfTruth: {
+  probabilisticSourceOfTruth: {
     filePath: string;
-    reasoning: string;                // e.g., "Code in active controller with 95% test coverage"
-  };
-  recommendedResolution: {
-    actionType: 'UPDATE_DOCS' | 'UPDATE_CODE' | 'UPDATE_SPEC' | 'UPDATE_CONFIG';
-    targetFilePath: string;
-    suggestedPatch?: string;          // Unified diff snippet
+    probability: number;              // Estimated likelihood (0.00 to 1.00)
+    reasoning: string;                // Probabilistic heuristic explanation
   };
   status: 'OPEN' | 'RESOLVED' | 'IGNORED';
 }
@@ -259,116 +248,109 @@ export interface ContradictionFinding {
 
 ---
 
-## 9. False Positive Mitigation & Confidence Engineering
+## 9. Deterministic Safety Layer & False Positive Mitigation
 
-False positives destroy developer trust. We apply a multi-tier filtration pipeline:
+To guarantee high signal-to-noise quality, deterministic validation acts as the **mandatory safety layer** around all LLM claim extractions and semantic comparisons.
 
 ```
-Raw Candidate Contradiction
-            │
-            ▼
+Raw Extracted Claims
+          │
+          ▼
 ┌─────────────────────────────────────────┐
-│ Tier 1: Scope & File Pattern Filtering │ --> Exclude /node_modules, /dist, mocks
-└───────────────────┬─────────────────────┘
-                    │
-                    ▼
+│ Tier 1: Scope & Pattern Filtering       │ --> Exclude /node_modules, /dist, build artifacts
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
 ┌─────────────────────────────────────────┐
-│ Tier 2: AST Context & Reference Check  │ --> Verify symbol actual usage in AST
-└───────────────────┬─────────────────────┘
-                    │
-                    ▼
+│ Tier 2: Deterministic AST & Regex Proof │ --> Safety Layer: Validate raw snippets & line numbers against disk
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
 ┌─────────────────────────────────────────┐
-│ Tier 3: Environmental / Overlay Check   │ --> Identify intentional dev vs prod envs
-└───────────────────┬─────────────────────┘
-                    │
-                    ▼
+│ Tier 3: Environmental / Overlay Check   │ --> Identify intentional dev vs prod env differences
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
 ┌─────────────────────────────────────────┐
-│ Tier 4: Multi-Prompt LLM Cross-Check    │ --> Dual-LLM validation with chain-of-thought
-└───────────────────┬─────────────────────┘
-                    │
-                    ▼
-Validated High-Confidence Finding (Confidence >= 0.80)
+│ Tier 4: Hybrid Semantic Claim Compare   │ --> Validate mutual exclusion on normalized predicates
+└─────────────────┬───────────────────────┘
+                  │
+                  ▼
+Validated High-Confidence Contradiction Finding
 ```
 
-### 9.1 Confidence Scoring Algorithm
+### 9.1 Confidence Scoring Formulation
+Confidence is computed via a probabilistic scoring heuristic:
 $$\text{Confidence} = (W_{det} \cdot S_{det}) + (W_{ast} \cdot S_{ast}) + (W_{llm} \cdot S_{llm}) - P_{env}$$
 
 Where:
-* $S_{det} \in \{0,1\}$: Deterministic parsing match score.
-* $S_{ast} \in \{0,1\}$: Symbol resolution in context graph.
-* $S_{llm} \in [0,1]$: Semantic similarity / contradiction probability score from LLM.
-* $P_{env}$: Penalty applied if differences occur in test fixtures or mock files.
+* $S_{det} \in \{0,1\}$: Deterministic parsing match verification.
+* $S_{ast} \in \{0,1\}$: AST symbol resolution score.
+* $S_{llm} \in [0,1]$: Semantic claim incompatibility score.
+* $P_{env}$: Penalty for test fixture or intentional environment overlay differences.
 
 ---
 
-## 10. Repository Intelligence & Context Graph Integration
+## 10. Lightweight Repository Context Graph (RCG)
 
-To understand relationships across disparate files, we construct a lightweight **Repository Context Graph (RCG)** using tree-sitter or regex-AST parsing.
+To correlate claims across disparate files without heavy infrastructure, we build an **in-memory Lightweight Context Graph**.
 
 ```
        ┌───────────────────┐
        │   README.md       │
        └─────────┬─────────┘
-                 │ (documents)
+                 │ (contains)
                  ▼
-       ┌───────────────────┐       (implements)      ┌───────────────────┐
-       │ OpenAPI spec YAML │ ──────────────────────> │ Express Route AST │
-       └───────────────────┘                         └─────────┬─────────┘
-                                                               │ (uses)
-                                                               ▼
-       ┌───────────────────┐       (asserts)         ┌───────────────────┐
-       │ Jest Test File    │ ──────────────────────> │ Service Method    │
+       ┌───────────────────┐       (addresses)       ┌───────────────────┐
+       │   Doc Claim A     │ ──────────────────────> │ Domain Subject S  │
+       └───────────────────┘                         └─────────▲─────────┘
+                                                               │ (addresses)
+       ┌───────────────────┐       (contains)        ┌─────────┴─────────┐
+       │ Express Route AST │ ──────────────────────> │   Code Claim B    │
        └───────────────────┘                         └───────────────────┘
 ```
 
-### 10.1 Key Edge Types in RCG
-1. **`DOCUMENTS`**: `README.md` $\rightarrow$ `API Route Symbol`
-2. **`SPECIFIES`**: `openapi.yaml` $\rightarrow$ `Express Controller`
-3. **`CONFIGURES`**: `.env.example` $\rightarrow$ `process.env.VAR_NAME`
-4. **`TESTS`**: `user.test.ts` $\rightarrow$ `UserService.ts`
-5. **`CALLS`**: `React Component` $\rightarrow$ `API Endpoint`
+### 10.1 Key Graph Entities & Edges
+1. **Nodes**: `Artifact` (File), `Claim` (Extracted assertion), `Subject` (Domain symbol/route/key).
+2. **Edges**:
+   * `Artifact` $\rightarrow \text{CONTAINS} \rightarrow$ `Claim`
+   * `Claim` $\rightarrow \text{ADDRESSES} \rightarrow$ `Subject`
+   * `Claim A` $\rightarrow \text{CONFLICTS\_WITH} \rightarrow$ `Claim B`
 
 ---
 
-## 11. MVP Scope & MoSCoW Prioritization
+## 11. MVP Scope & Prioritization Matrix (KEEP / CHANGE / DEFER)
 
-For the 48-hour hackathon, we strictly manage scope to guarantee an impressive, bulletproof demo.
+### 11.1 Priority Categorization
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                          MVP SCOPE BOUNDARIES                          │
+│                        MVP SCOPE MATRIX                                │
 ├───────────────────────────────────┬────────────────────────────────────┤
-│ MUST HAVE (Core Demo)             │ SHOULD HAVE (Enhancements)         │
-│ • Web UI Dashboard (Next.js/Tailwind)│ • Automated Patch/PR Generator     │
-│ • Local Repo File Ingestion       │ • Interactive Graph View (Vis.js)  │
-│ • OpenAPI vs Express/FastAPI AST  │ • Export Audit Report (Markdown)   │
-│ • README Claims vs Code Validator │                                    │
-│ • Env Var (.env.example vs code)  │                                    │
-│ • Evidence Viewer (Split Diff)    │                                    │
-├───────────────────────────────────┼────────────────────────────────────┤
-│ COULD HAVE (Stretch)              │ EXPLICITLY AVOID (Out of Scope)    │
-│ • Jest Test Assert Checker        │ • Full-blown IDE extension         │
-│ • Git History archaeology        │ • Custom LLM pre-training/fine-tune│
-│ • Live file watch mode            │ • Multi-repo enterprise sync       │
-└───────────────────────────────────┴────────────────────────────────────┘
+│ KEEP (Core Scope)                 │ CHANGE (Refined Focus)             │
+│ • Multi-source contradiction check│ • Make "Claim" central abstraction │
+│ • Evidence-first findings         │ • Probabilistic source-of-truth    │
+│ • AST-backed verification         │ • Remove unverified performance %s │
+│ • Lightweight in-memory graph     │ • Keep graph lightweight           │
+│ • Deterministic + semantic hybrid │ • Deterministic safety layer       │
+│ • Synthetic demo repository       │                                    │
+│ • 3-way hero contradiction demo   │                                    │
+├───────────────────────────────────┴────────────────────────────────────┤
+│ DEFER (Explicitly Out of MVP Scope)                                    │
+│ • Automated Patch / PR Generation (Suggested diff fixes)              │
+│ • Git Archaeology & Commit History Parsing                             │
+│ • Architectural Layer / Pattern Drift Analysis                         │
+│ • Multi-Language Support (Focus strictly on JS/TS, YAML, Markdown, .env)│
+│ • Enterprise Graph DBs & Distributed Multi-Repo Infrastructure         │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
 ## 12. Recommended Technical Architecture
 
-### 12.1 Evaluation of Architecture Options
-
-#### Option A: Monolithic Python CLI Tool (Typer + Rich)
-* *Pros:* Simple, fast string parsing, easy tree-sitter bindings.
-* *Cons:* Weak presentation; judging criteria heavily values visual impact and UX (10% Presentation, 30% Execution).
-
-#### Option B: Full-Stack Next.js (App Router) + Node.js Backend Engine (Selected)
-* *Pros:* Stunning interactive UI, unified TypeScript stack, direct AST parsing (`@babel/parser`, `ts-morph`), rich diff visualizers, seamless API integration.
-* *Cons:* Requires managing API routes and async background scanning.
-
-### 12.2 Selected Architecture & Rationale
-We select **Option B: Unified Next.js + Node.js Repository Engine Stack**.
+### 12.1 Selected Architecture: Next.js + Node.js Engine
+We select a unified Next.js App Router & Node.js Engine stack for crisp presentation and direct AST access.
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
@@ -376,28 +358,28 @@ We select **Option B: Unified Next.js + Node.js Repository Engine Stack**.
 │                                                                        │
 │   ┌────────────────────────────────────────────────────────────────┐   │
 │   │                 Frontend (Next.js 14 + Tailwind)               │   │
-│   │   • Dashboard Summary Cards  • Contradiction Detail Drawer     │   │
-│   │   • Code/Doc Split Viewer    • Graph Explorer Node View        │   │
+│   │   • Health Score Dial        • Contradiction List & Filters    │   │
+│   │   • Split Evidence Viewer    • Lightweight Context Graph View  │   │
 │   └───────────────────────────────┬────────────────────────────────┘   │
 │                                   │ REST / Server Actions              │
 │   ┌───────────────────────────────▼────────────────────────────────┐   │
 │   │                 Core Engine (Node.js/TypeScript)               │   │
 │   │                                                                │   │
 │   │   ┌───────────────────┐    ┌───────────────────────────────┐   │   │
-│   │   │ Artifact Parsers  │    │ Repository Context Graph      │   │   │
-│   │   │ (ts-morph, yaml)  │ ──>│ (In-Memory Node/Edge Index)   │   │   │
+│   │   │ Artifact Parsers  │    │ Lightweight Context Graph     │   │   │
+│   │   │ (ts-morph, yaml)  │ ──>│ (In-Memory Claims & Subjects) │   │   │
 │   │   └───────────────────┘    └───────────────┬───────────────┘   │   │
 │   │                                            │                   │   │
 │   │   ┌────────────────────────────────────────▼───────────────┐   │   │
-│   │   │              Detection Pipeline Engine                 │   │   │
-│   │   │ • Structural Detector   • Env Var Matcher              │   │   │
-│   │   │ • OpenAPI vs Controller • Semantic LLM Asserter        │   │   │
+│   │   │ Deterministic Safety & Hybrid Claim Engine             │   │   │
+│   │   │ • Route Path Matcher    • Env Key Parser               │   │   │
+│   │   │ • Schema Validator      • LLM Claim Extraction & Compare│   │   │
 │   │   └────────────────────────────────┬───────────────────────┘   │   │
 │   └────────────────────────────────────┼───────────────────────────┘   │
 │                                        │ API Calls                     │
 │   ┌────────────────────────────────────▼───────────────────────────┐   │
-│   │               LLM Provider (Google Gemini 3.7 / OpenAI)        │   │
-│   │   • Structured JSON Output Extraction                          │   │
+│   │               LLM Layer (Gemini 3.7 / OpenAI)                  │   │
+│   │   • Structured Claim Extraction & Comparison Prompts           │   │
 │   └────────────────────────────────────────────────────────────────┘   │
 └────────────────────────────────────────────────────────────────────────┘
 ```
@@ -407,154 +389,81 @@ We select **Option B: Unified Next.js + Node.js Repository Engine Stack**.
 ## 13. End-to-End Analysis Pipeline Specification
 
 ```
-   [1. Repo Ingestion]  ──> Read files, build file-tree index
+   [1. Repo Ingestion]  ──> Index files, discover target artifacts
             │
             ▼
- [2. Artifact Extract]  ──> AST parse TS/JS, YAML specs, Markdown docs, .env files
+  [2. Claim Extraction] ──> Extract AST definitions, OpenAPI schemas, .env keys, Markdown claims
             │
             ▼
-  [3. RCG Build Step]   ──> Connect symbols, routes, keys, and doc headers
+   [3. Graph Linking]   ──> Connect Artifacts -> Claims -> Domain Subjects in lightweight graph
             │
             ▼
-[4. Candidate Generator]──> Emit candidate tuples <Subject, Source A, Source B>
+[4. Safety & Matcher]   ──> Run deterministic matchers (routes, env keys, schema types)
             │
             ▼
-[5. Detector Execution] ──> Run Structural, API, Env, and Semantic Detectors
+ [5. Semantic Compare]  ──> Run hybrid LLM comparison on extracted claims over identical subjects
             │
             ▼
-[6. Confidence Scorer]  ──> Apply false-positive mitigation & scoring weights
+ [6. Probabilistic Scoring]─> Compute confidence & probabilistic source-of-truth score
             │
             ▼
- [7. Finding Synthesis] ──> Assemble evidence snippets, diffs, and recommendations
-            │
-            ▼
- [8. Web UI Rendering]  ──> Stream findings to dashboard
+  [7. Finding UI Render]──> Present findings with split evidence view in Web Dashboard
 ```
 
 ---
 
 ## 14. Deterministic vs. LLM Engine Matrix
 
-| Analysis Task | Deterministic | LLM | Hybrid Approach | Rationale |
+| Analysis Task | Deterministic | LLM | Hybrid Approach | Deterministic Safety Role |
 | :--- | :---: | :---: | :---: | :--- |
 | **API Endpoint Path Matching** | **X** | | | String parsing/regex on AST routes vs YAML specs is 100% exact. |
-| **Env Variable Key Audit** | **X** | | | Comparing `.env.example` keys to `process.env` AST nodes is 100% exact. |
+| **Env Variable Key Audit** | **X** | | | Comparing `.env.example` keys to `process.env` AST nodes is exact. |
 | **OpenAPI Parameter Required Check** | **X** | | | Comparing OpenAPI `required` array with Zod schema properties is exact. |
-| **Doc Sentence Claim Extraction** | | **X** | | LLM extracts structured rule claims from free-form Markdown text. |
-| **Behavioral Logic Conflict** | | | **X** | AST extracts function logic; LLM compares extracted logic against Doc claims. |
-| **Likely Source of Truth Scoring** | | | **X** | Deterministic test coverage + Git timestamp combined with LLM rationale. |
+| **Doc Natural Language Claim Extraction** | | **X** | | LLM extracts structured claim statements from free-form Markdown text. |
+| **Behavioral Claim Comparison** | | | **X** | AST extracts function logic; LLM compares logic claim against doc claim. |
+| **Probabilistic Source of Truth** | | | **X** | Deterministic test coverage + AST execution path feed probabilistic scorer. |
 
 ---
 
-## 15. User Experience & Dashboard Design
+## 15. User Experience & Hero Demo Script
 
-### 15.1 First 10 Seconds Judge Impact
-When the judge opens the app, they immediately see:
-1. **Truth Disagreement Health Score:** Large visual score dial (e.g., `64/100 - 5 Contradictions Detected`).
-2. **3-Way Disagreement Alert Banner:** Prominently highlights a 3-way contradiction spanning README, OpenAPI, and Express Controller.
-3. **Filter Matrix by Category:** Pills for Structural, API Contract, Behavioral, Config, and Testing.
-
-```
-+-----------------------------------------------------------------------------------+
-|  CODEBASE CONTRADICTION DETECTOR                                 [ Scan Repo ]    |
-+-----------------------------------------------------------------------------------+
-|  HEALTH SCORE: 64%  |  5 Contradictions Found  |  12 Sources Analyzed           |
-+-----------------------------------------------------------------------------------+
-| [CRITICAL] Cancellation Window Mismatch                                          |
-|   Subject: user_cancellation_period                                               |
-|   Sources: README.md (24h) | OpenAPI.yaml (24h) | CancelController.ts (48h)       |
-|   [ View Split Evidence Proof ]  [ Generate Unified Fix Patch ]                   |
-+-----------------------------------------------------------------------------------+
-| [HIGH] Environment Variable 'MAX_REDIS_CONN' Missing from Code                    |
-|   Subject: MAX_REDIS_CONN                                                         |
-|   Sources: .env.example (Present) | config.ts (Missing)                           |
-+-----------------------------------------------------------------------------------+
-```
-
----
-
-## 16. Killer Demo Story & Scenario Script (2-Minute Demo)
-
-* **0:00 - 0:15 (The Hook):** *"Every codebase lies to itself. Docs say one thing, OpenAPI says another, and code does a third. Today we launch Codebase Contradiction Detector."*
-* **0:15 - 0:30 (The Trigger):** Click **"Scan Demo Repository"**. The graph builds live in 3 seconds.
-* **0:30 - 1:15 (The Reveal - The 3-Way Contradiction):** Open **"Cancellation Window Mismatch"**. Show the 3-pane split view:
-  * Pane 1 (Doc): README states *"24 hours refund window"*.
-  * Pane 2 (Spec): OpenAPI spec defines `cancelGracePeriodHours: 24`.
+### 15.1 Hero Demo Narrative (2-Minute Script)
+* **0:00 - 0:15 (The Hook):** *"Every codebase lies to itself. Docs claim one thing, OpenAPI specs declare another, and code does a third. Today we launch Codebase Contradiction Detector."*
+* **0:15 - 0:30 (The Trigger):** Click **"Scan Repository"**. The lightweight claims graph builds live in seconds.
+* **0:30 - 1:15 (The Hero 3-Way Disagreement):** Open **"Cancellation Window Mismatch"**. Display the 3-pane split evidence viewer:
+  * Pane 1 (Doc): `README.md` claims *"24 hours refund window"*.
+  * Pane 2 (Spec): `openapi.yaml` defines `cancelGracePeriodHours: 24`.
   * Pane 3 (Backend Code): Express controller executes `if (hours > 48) return res.status(400)`.
-* **1:15 - 1:40 (The Proof & Reason):** Engine highlights the exact conflicting lines, assigns a 96% confidence score, and identifies `CancelController.ts` as the current runtime truth.
-* **1:40 - 2:00 (The Resolution):** Click **"Generate Patch"**. The engine outputs a clean Git patch updating `README.md` and `openapi.yaml` to 48 hours, resolving the conflict.
+* **1:15 - 1:45 (The Proof & Deterministic Safety):** Show exact line anchors backed by AST line verification. Engine displays probabilistic source-of-truth ranking (`CancelController.ts`: 75% likelihood due to active execution & test coverage).
+* **1:45 - 2:00 (The Takeaway):** Highlight instant multi-source claim cross-referencing and zero-guesswork evidence proofs.
 
 ---
 
-## 17. Realistic Demo Repository Strategy
+## 16. Realistic Synthetic Demo Repository (`demo-repo/`)
 
-We will build a clean, self-contained synthetic target repository (`demo-repo/`) with 5 realistic, non-cartoonish contradiction scenarios:
+We construct a target synthetic repository (`demo-repo/`) containing 5 realistic contradiction scenarios:
 
-1. **Scenario 1 (API Route Drift):** `README.md` documents `POST /api/v1/auth/login`, while `routes/auth.ts` exposes `POST /api/v1/auth/token`.
-2. **Scenario 2 (Business Grace Period Discrepancy):** README claims 24-hour cancellation; code implements 48-hour check.
+1. **Scenario 1 (API Route Drift):** `README.md` claims `POST /api/v1/auth/login`, while `routes/auth.ts` exposes `POST /api/v1/auth/token`.
+2. **Scenario 2 (3-Way Grace Period Discrepancy - HERO DEMO):** `README.md` claims 24-hour cancellation; `openapi.yaml` specifies 24 hours; `controllers/subscription.ts` enforces 48 hours.
 3. **Scenario 3 (Environment Config Drift):** `.env.example` defines `ENABLE_RATE_LIMITING=true`, but `config/app.ts` reads `RATE_LIMIT_ENABLED`.
 4. **Scenario 4 (Required Parameter Schema Conflict):** `openapi.yaml` marks `taxId` as optional; `controllers/billing.ts` Zod schema requires `taxId`.
-5. **Scenario 5 (Test Assertion Conflict):** README states *"Returns 401 Unauthorized for expired tokens"*, but `auth.test.ts` asserts `403 Forbidden`.
+5. **Scenario 5 (Test Assertion Conflict):** Doc claims *"Returns 401 Unauthorized for expired tokens"*, but `auth.test.ts` asserts `403 Forbidden`.
 
 ---
 
-## 18. Internal Evaluation & Quality Benchmark Suite
+## 17. Internal Evaluation Suite (`npm run eval`)
 
-We will maintain an internal evaluation script (`npm run eval`) that runs our engine against `demo-repo/` to verify performance metrics:
+We maintain an evaluation script to verify engine performance against `demo-repo/`:
 
-* **Contradiction Recall:** Must detect $5/5$ target scenarios ($100\%$).
-* **Precision:** Must produce zero unhandled false positives ($\ge 90\%$ precision).
-* **Scan Speed:** Total scan time under 5 seconds for local repos.
-* **Evidence Accuracy:** 100% correct file paths and line numbers.
-
----
-
-## 19. Core Innovation & Differentiation Summary
-
-### Why isn't this just another documentation drift detector?
-1. **Multi-Source Synthesis:** We don't just check Markdown vs Git timestamps. We compare **N artifacts simultaneously** (Docs + Code + Spec + Config + Tests).
-2. **AST-Backed Evidence:** Every claim is backed by extracted AST nodes or schema definitions, eliminating guesswork.
-3. **Incompatibility Proof Engine:** We generate formal semantic proofs of why two assertions cannot co-exist.
+* **Contradiction Recall:** High detection rate across all target demo scenarios.
+* **Safety Verification:** 100% of reported claims verified against exact line numbers on disk.
+* **Scan Speed:** Fast local execution.
 
 ---
 
-## 20. SkillPatch Skill Recommendation
+## 18. Implementation Coding Plan
 
-We recommend incorporating the following built-in skill during implementation:
-* **`code-reviewer`**: Useful for evaluating diff patches generated by our resolution engine.
-* **`architecture-designer`**: For validating our Repository Context Graph schema.
-
----
-
-## 21. Risk Matrix & Mitigations
-
-| Risk | Prob. | Impact | Mitigation Strategy |
-| :--- | :---: | :---: | :--- |
-| **LLM Latency / API Rate Limits** | Med | High | Cache LLM claims per file hash; use deterministic parsers for structural checks. |
-| **LLM Hallucinated Contradictions** | Med | High | Require exact line number regex verification against source files before emitting alert. |
-| **Scope Creep / UI Complexity** | High | High | Strict MoSCoW enforcement; freeze UI layout by hour 20 of hackathon. |
-| **Multi-Language Parsing Overhead** | Low | Med | Focus MVP strictly on TypeScript/JavaScript + Markdown + YAML + `.env`. |
-
----
-
-## 22. Final Recommendation & Executive Summary
-
-### Product Definition
-Codebase Contradiction Detector is a multi-source repository intelligence tool that builds a context graph to discover, prove, and resolve contradictory claims across code, specs, docs, config, and tests.
-
-### Core Innovation
-Cross-artifact truth disagreement synthesis with AST-backed evidence proofs and zero-false-positive confidence filtering.
-
-### Recommended Tech Stack
-* **Frontend:** Next.js 14 (App Router), Tailwind CSS, Lucide Icons, Monaco Editor / Prism diff viewer.
-* **Backend Engine:** Node.js (TypeScript), `ts-morph` / `@babel/parser`, `yaml`, `dotenv`.
-* **LLM Layer:** Google Gemini 3.7 Flash API (via standard SDK) with structured JSON schema outputs.
-
----
-
-## 23. NEXT SESSION: CODING PLAN
-
-When the next coding session begins, execute implementation steps in exact sequence using **LatentCode**:
+Execute implementation steps in sequence using **LatentCode**:
 
 ```text
 STEP 1: Initialize Workspace & Project Scaffold
@@ -569,45 +478,30 @@ STEP 3: Implement Engine Core & Parsers
         - Implement TS/JS AST parser using ts-morph / babel.
         - Implement OpenAPI YAML parser & .env parser.
 
-STEP 4: Implement Repository Context Graph (RCG)
-        - Build in-memory graph connecting symbols, routes, keys, and doc sections.
+STEP 4: Implement Central Claim Model & Lightweight Graph
+        - Build in-memory graph connecting Artifacts, Extracted Claims, and Subjects.
 
-STEP 5: Build Deterministic Detectors
-        - Detector 1: Route Path Mismatch (OpenAPI vs Code AST).
-        - Detector 2: Config Key Drift (.env.example vs process.env AST).
-        - Detector 3: Schema Parameter Requirement Mismatch.
+STEP 5: Build Deterministic Matchers & Safety Layer
+        - Route Path Matcher (OpenAPI vs Code AST).
+        - Config Key Matcher (.env.example vs process.env AST).
+        - Schema Parameter Matcher.
+        - AST Line Anchor Verifier (Safety layer).
 
-STEP 6: Build LLM Semantic Claim Asserter
-        - Implement claim extraction prompt with Gemini 3.7 structured JSON.
-        - Implement semantic contradiction comparator.
+STEP 6: Build LLM Hybrid Claim Asserter
+        - Claim extraction prompts with structured JSON outputs.
+        - Semantic claim incompatibility comparator.
 
-STEP 7: Build Evidence & Finding Synthesizer
-        - Combine deterministic & LLM results.
-        - Calculate confidence scores and select likely source of truth.
+STEP 7: Build Evidence & Probabilistic Truth Synthesizer
+        - Combine deterministic & LLM claim results.
+        - Compute probabilistic source-of-truth score.
 
 STEP 8: Build Frontend Dashboard UI
         - Header & Health Score Dial component.
         - Contradiction List & Category Filter tabs.
-        - Interactive Split-Pane Evidence Viewer.
-        - Automated Patch Generator modal.
+        - Interactive Split-Pane Evidence Viewer (3-way hero proof).
+        - Lightweight Context Graph Explorer.
 
 STEP 9: Verification & Benchmark Run
         - Execute `npm run eval` against /demo-repo.
-        - Ensure 100% recall on demo scenarios with zero crash bugs.
+        - Ensure robust execution on demo scenarios.
 ```
-
----
-
-## 24. FINAL SELF-CRITIQUE (Skeptical Judge Attack Vectors & Defenses)
-
-### Attack 1: "Isn't this just an expensive wrapper around regex and an LLM prompt?"
-* **Defense:** No. Pure regex fails on scope and import aliases (e.g., `import { router as appRouter }`). Pure LLM fails on hallucinated line numbers and cost. Our architecture uses **AST parsing** for precise symbol extraction and **Repository Context Graph (RCG)** filtering so the LLM receives exact semantic pairs rather than raw unindexed files.
-
-### Attack 2: "What if the code is wrong and the docs are right?"
-* **Defense:** Our system does not assume code is always supreme. The engine evaluates **recency, test coverage, and multi-source consensus**. If 3 documentation/spec sources agree on 24 hours and one un-tested controller has 48 hours, the engine flags the controller as the likely bug location.
-
-### Attack 3: "How does this scale to a 100,000 line repository?"
-* **Defense:** The AST parsers run in milliseconds per file. The LLM is invoked **only** on candidate edges in the Context Graph, not on the raw repository bulk. In validation, this reduces LLM token consumption by over 85%.
-
----
-*End of Blueprint Document. Ready for coding phase.*

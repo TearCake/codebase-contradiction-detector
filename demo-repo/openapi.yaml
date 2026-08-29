@@ -1,0 +1,49 @@
+openapi: 3.0.3
+info:
+  title: Acme SaaS API Specification
+  version: 1.0.0
+  description: Public API specification for Acme SaaS platform
+
+paths:
+  /api/v1/auth/login:
+    post:
+      summary: User authentication endpoint
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+
+  /api/v1/subscriptions/cancel:
+    post:
+      summary: Cancel subscription
+      description: Cancels active subscription. Refund eligible if within cancelGracePeriodHours (24 hours).
+      operationId: cancelSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subscriptionId:
+                  type: string
+                taxId:
+                  type: string
+              required: []
+      responses:
+        '200':
+          description: Subscription cancelled
