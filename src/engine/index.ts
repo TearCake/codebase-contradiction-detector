@@ -2,7 +2,7 @@ import { scanRepository, ScanResult } from './scanner';
 import { extractArtifactInformation } from './extractor';
 import { produceRepositorySummary } from './summary';
 import { buildRepositoryContextGraph } from './graph';
-import { evaluateRepositoryContradictions } from './evaluator';
+import { evaluateRepositoryContradictions, evaluateRepositoryContradictionsAsync } from './evaluator';
 import {
   NormalizedArtifact,
   RepositorySummary,
@@ -21,6 +21,41 @@ export interface AnalysisPipelineResult {
   healthScore: number;
 }
 
+export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<AnalysisPipelineResult> {
+  // 1. Scan Repository
+  const scanResult = scanRepository(repoPath);
+
+  // 2. Extract Artifacts
+  scanResult.artifacts.forEach((artifact) => {
+    extractArtifactInformation(artifact);
+  });
+
+  // 3. Produce Repository Summary
+  const summary = produceRepositorySummary(scanResult);
+
+  // 4. Build Context Graph & Claims
+  const { graph, claims } = buildRepositoryContextGraph(scanResult.artifacts);
+
+  // 5. Evaluate Contradictions (Async with LLM)
+  const findings = await evaluateRepositoryContradictionsAsync(scanResult.artifacts, claims);
+
+  // 6. Enrich Graph
+  enrichGraphWithFindings(graph, findings);
+
+  // 7. Calculate Repository Health Score (0 - 100)
+  const healthScore = calculateHealthScore(findings);
+
+  return {
+    scanResult,
+    artifacts: scanResult.artifacts,
+    summary,
+    graph,
+    claims,
+    findings,
+    healthScore,
+  };
+}
+
 export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResult {
   // 1. Scan Repository
   const scanResult = scanRepository(repoPath);
@@ -36,25 +71,37 @@ export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResul
   // 4. Build Context Graph & Claims
   const { graph, claims } = buildRepositoryContextGraph(scanResult.artifacts);
 
-  // 5. Evaluate Contradictions
+  // 5. Evaluate Contradictions (Sync)
   const findings = evaluateRepositoryContradictions(scanResult.artifacts, claims);
 
-  // 6. Enrich graph with CONFLICTS_WITH edges and logical subjects for findings
+  // 6. Enrich Graph
+  enrichGraphWithFindings(graph, findings);
+
+  // 7. Calculate Repository Health Score
+  const healthScore = calculateHealthScore(findings);
+
+  return {
+    scanResult,
+    artifacts: scanResult.artifacts,
+    summary,
+    graph,
+    claims,
+    findings,
+    healthScore,
+  };
+}
+
+function enrichGraphWithFindings(graph: RepositoryContextGraph, findings: ContradictionFinding[]): void {
   findings.forEach((finding) => {
-    // Check if the claims have different subjects (Case B mismatch)
-    const distinctSubjects = new Set(finding.conflictingClaims.map(c => c.subject));
-    
-    // If it's a structural mismatch (multiple distinct subjects), update the finding subject
-    // to be a logical comparison node if it isn't already handled.
+    const distinctSubjects = new Set(finding.conflictingClaims.map((c) => c.subject));
+
     if (distinctSubjects.size > 1) {
-      // Ensure the finding's subject is distinct from the individual claim subjects
       if (distinctSubjects.has(finding.subject)) {
         finding.subject = `logical_conflict:${finding.id}`;
       }
-      
-      // Add the logical subject node if it doesn't exist
+
       const logicalSubjectId = `subject:${finding.subject}`;
-      if (!graph.nodes.some(n => n.id === logicalSubjectId)) {
+      if (!graph.nodes.some((n) => n.id === logicalSubjectId)) {
         graph.nodes.push({
           id: logicalSubjectId,
           type: 'SUBJECT',
@@ -62,11 +109,10 @@ export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResul
           data: { subject: finding.subject, isLogical: true },
         });
       }
-      
-      // Link the differing subjects or claims to this logical node
-      finding.conflictingClaims.forEach(claim => {
+
+      finding.conflictingClaims.forEach((claim) => {
         const edgeId = `edge:${claim.id}->${logicalSubjectId}`;
-        if (!graph.edges.some(e => e.id === edgeId)) {
+        if (!graph.edges.some((e) => e.id === edgeId)) {
           graph.edges.push({
             id: edgeId,
             source: claim.id,
@@ -77,12 +123,11 @@ export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResul
       });
     }
 
-    // Add CONFLICTS_WITH edges between all conflicting claims
     for (let i = 0; i < finding.conflictingClaims.length; i++) {
       for (let j = i + 1; j < finding.conflictingClaims.length; j++) {
         const c1 = finding.conflictingClaims[i];
         const c2 = finding.conflictingClaims[j];
-        
+
         graph.edges.push({
           id: `edge:conflict:${c1.id}-${c2.id}`,
           source: c1.id,
@@ -92,9 +137,9 @@ export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResul
       }
     }
   });
+}
 
-  // 7. Calculate Repository Health Score (0 - 100)
-  // Deduct based on severity of findings
+function calculateHealthScore(findings: ContradictionFinding[]): number {
   let penalty = 0;
   findings.forEach((f) => {
     switch (f.severity) {
@@ -113,17 +158,7 @@ export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResul
     }
   });
 
-  const healthScore = Math.max(0, Math.min(100, 100 - penalty));
-
-  return {
-    scanResult,
-    artifacts: scanResult.artifacts,
-    summary,
-    graph,
-    claims,
-    findings,
-    healthScore,
-  };
+  return Math.max(0, Math.min(100, 100 - penalty));
 }
 
 // Backwards compatibility export
@@ -142,3 +177,7 @@ export * from './summary';
 export * from './graph';
 export * from './matchers';
 export * from './evaluator';
+export * from './llm/client';
+export * from './llm/candidateMatcher';
+export * from './llm/evidenceVerifier';
+export * from './llm/semanticService';

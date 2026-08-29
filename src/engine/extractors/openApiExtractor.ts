@@ -52,7 +52,7 @@ export function extractOpenApiArtifacts(artifact: NormalizedArtifact): void {
             description: resp?.description,
           }));
 
-          const rawSnippet = lines.slice(Math.max(0, lineIndex - 1), endLine).join('\n').slice(0, 300);
+          const rawSnippet = lines.slice(Math.max(0, lineIndex - 1), endLine).join('\n');
 
           openApiEndpoints.push({
             method,

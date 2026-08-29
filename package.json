@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test": "ts-node src/scripts/run-tests.ts",
     "eval": "ts-node src/scripts/eval.ts"
   },
   "dependencies": {

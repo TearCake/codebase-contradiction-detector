@@ -172,8 +172,8 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
     // Process.env.* references
     if (node.getKind() === SyntaxKind.PropertyAccessExpression) {
       const text = node.getText();
-      if (text.startsWith('process.env.')) {
-        const envVarName = text.replace('process.env.', '');
+      if (text.startsWith('process.env.') && text !== 'process.env') {
+        const envVarName = text.replace('process.env.', '').split('.')[0];
         const startLine = node.getStartLineNumber();
         const endLine = node.getEndLineNumber();
 
@@ -205,5 +205,5 @@ export function extractCodeArtifacts(artifact: NormalizedArtifact): void {
   artifact.extracted.imports = imports;
   artifact.extracted.routes = routes;
   artifact.extracted.envRefs = envRefs;
-  artifact.extracted.claims = claims;
+  artifact.extracted.claims.push(...claims);
 }

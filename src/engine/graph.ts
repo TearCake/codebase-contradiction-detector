@@ -111,21 +111,17 @@ export function buildRepositoryContextGraph(artifacts: NormalizedArtifact[]): {
     artifact.extracted.markdownSections.forEach((sec, idx) => {
       const text = sec.text;
 
-      // Extract cancellation grace period claims
-      const graceMatch = text.match(/(\d+)\s*[- ]*(hour|hr|day|minute)s?\b/i);
       let subject = 'doc:general';
-      if (/cancel|refund|grace|subscription/i.test(text)) {
-        subject = 'domain:user_cancellation_period';
-      } else if (/auth|login|token/i.test(text)) {
-        subject = 'domain:auth_endpoint';
-      } else if (/rate\s*limit/i.test(text)) {
-        subject = 'env:RATE_LIMIT_ENABLED';
-      }
-
-      // Check route pattern in text
       const routeMatch = text.match(/(GET|POST|PUT|DELETE|PATCH)\s+(\/[a-zA-Z0-9_\-\/]+)/i);
       if (routeMatch) {
         subject = `route:${routeMatch[1].toUpperCase()} ${routeMatch[2]}`;
+      } else {
+        // Derive subject from section topic keywords dynamically
+        const words = text.toLowerCase().match(/[a-z]{3,}/g) || [];
+        const uniqueTopicWords = Array.from(new Set(words.filter(w => !['the', 'and', 'for', 'with', 'this', 'can', 'you'].includes(w)))).slice(0, 3);
+        if (uniqueTopicWords.length > 0) {
+          subject = `topic:${uniqueTopicWords.join('_')}`;
+        }
       }
 
       const claim: ExtractedClaim = {
@@ -145,10 +141,10 @@ export function buildRepositoryContextGraph(artifacts: NormalizedArtifact[]): {
     // Extract Claims from Test Items
     artifact.extracted.testItems.forEach((test, idx) => {
       let subject = 'test:general';
-      if (/cancel|refund|grace/i.test(test.title)) {
-        subject = 'domain:user_cancellation_period';
-      } else if (/auth|login|expired|token/i.test(test.title)) {
-        subject = 'domain:auth_endpoint';
+      const words = test.title.toLowerCase().match(/[a-z]{3,}/g) || [];
+      const uniqueTestWords = Array.from(new Set(words.filter(w => !['should', 'test', 'when', 'with', 'returns', 'does'].includes(w)))).slice(0, 3);
+      if (uniqueTestWords.length > 0) {
+        subject = `topic:${uniqueTestWords.join('_')}`;
       }
 
       const assertionsSummary = test.assertions
