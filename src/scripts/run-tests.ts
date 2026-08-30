@@ -98,7 +98,7 @@ async function runAllUnitTests() {
   assert(pairs.length === 1, 'Only related candidate claims are paired');
   assert(
     (pairs[0].claimA.id === 'claim-1' && pairs[0].claimB.id === 'claim-2') ||
-      (pairs[0].claimA.id === 'claim-2' && pairs[0].claimB.id === 'claim-1'),
+    (pairs[0].claimA.id === 'claim-2' && pairs[0].claimB.id === 'claim-1'),
     'Related claims pair correctly matched'
   );
 

@@ -1,4 +1,4 @@
-import { NormalizedArtifact, ContradictionFinding, ExtractedClaim } from '../types/engine';
+import { NormalizedArtifact, ContradictionFinding, ExtractedClaim, SemanticAnalysisMetrics } from '../types/engine';
 import {
   checkRouteContradictions,
   checkEnvContradictions,
@@ -8,14 +8,16 @@ import {
 import { evaluateSemanticContradictions } from './llm/semanticService';
 import { generateCandidatePairs } from './llm/candidateMatcher';
 import { verifyPairEvidence } from './llm/evidenceVerifier';
+import { LLMClient } from './llm/client';
 
 /**
  * Evaluates repository contradictions across deterministic and semantic LLM layers.
  */
 export async function evaluateRepositoryContradictionsAsync(
   artifacts: NormalizedArtifact[],
-  claims: ExtractedClaim[]
-): Promise<ContradictionFinding[]> {
+  claims: ExtractedClaim[],
+  llmClient: LLMClient = new LLMClient()
+): Promise<{ findings: ContradictionFinding[]; semanticMetrics: SemanticAnalysisMetrics }> {
   const findings: ContradictionFinding[] = [];
 
   // 1. Run Deterministic Matchers
@@ -24,7 +26,7 @@ export async function evaluateRepositoryContradictionsAsync(
   findings.push(...checkSchemaContradictions(artifacts));
 
   // 2. Run Real LLM Semantic Layer
-  const semanticResult = await evaluateSemanticContradictions(artifacts, claims);
+  const semanticResult = await evaluateSemanticContradictions(artifacts, claims, llmClient);
   if (semanticResult.findings.length > 0) {
     findings.push(...semanticResult.findings);
   }
@@ -43,7 +45,7 @@ export async function evaluateRepositoryContradictionsAsync(
 
   const clustered = clusterMultiSourceFindings(verifiedFindings);
   const dedupped = deduplicateFindings(clustered);
-  return dedupped;
+  return { findings: dedupped, semanticMetrics: semanticResult.metrics };
 }
 
 /**

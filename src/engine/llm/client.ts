@@ -34,6 +34,7 @@ export interface LLMProviderConfig {
   apiKey?: string;
   model?: string;
   baseURL?: string;
+  deterministicOnly?: boolean;
 }
 
 export class LLMClient {
@@ -41,9 +42,21 @@ export class LLMClient {
   private apiKey: string | undefined;
   private model: string;
   private baseURL: string;
+  private isDeterministicOnly: boolean;
   private hasHitRateLimit = false;
+  private lastError: { type: string, message: string } | null = null;
 
   constructor(config?: LLMProviderConfig) {
+    this.isDeterministicOnly = Boolean(config?.deterministicOnly);
+    
+    if (this.isDeterministicOnly) {
+      this.provider = 'groq';
+      this.model = 'deterministic';
+      this.baseURL = '';
+      this.apiKey = undefined;
+      return;
+    }
+
     const rawProvider = (config?.provider || process.env.LLM_PROVIDER || '').toLowerCase();
     
     if (rawProvider === 'gemini' || process.env.GEMINI_API_KEY) {
@@ -66,7 +79,22 @@ export class LLMClient {
   }
 
   public isAvailable(): boolean {
+    if (this.isDeterministicOnly) return false;
+    if (this.lastError?.type === 'INVALID_MODEL' || this.lastError?.type === 'INVALID_API_KEY') return false;
     return Boolean(this.apiKey && this.apiKey.trim().length > 0 && !this.hasHitRateLimit);
+  }
+
+  public getLastError(): { type: string, message: string } | null {
+    if (this.isDeterministicOnly) {
+      return { type: 'NOT_CONFIGURED', message: 'User explicitly selected Deterministic Analysis.' };
+    }
+    if (!this.apiKey || this.apiKey.trim().length === 0) {
+      return { type: 'NOT_CONFIGURED', message: 'No API key configured.' };
+    }
+    if (this.hasHitRateLimit) {
+      return { type: 'RATE_LIMITED', message: 'Provider rate limit reached.' };
+    }
+    return this.lastError;
   }
 
   public getProviderName(): string {
@@ -177,19 +205,39 @@ ${req.claimB.rawSnippet}
       }
 
       if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          console.warn(`[LLMClient:${this.provider}] HTTP ${response.status} Invalid API key.`);
+          this.lastError = { type: 'INVALID_API_KEY', message: 'API key was rejected by the provider.' };
+          this.apiKey = undefined;
+          return null;
+        }
+        if (response.status === 404) {
+          console.warn(`[LLMClient:${this.provider}] HTTP 404 Invalid model.`);
+          this.lastError = { type: 'INVALID_MODEL', message: 'The selected model is invalid or unavailable.' };
+          this.apiKey = undefined;
+          return null;
+        }
+
         const errText = await response.text();
         console.warn(`[LLMClient:${this.provider}] API HTTP ${response.status}: ${errText.slice(0, 200)}`);
+        this.lastError = { type: 'PROVIDER_UNAVAILABLE', message: 'The provider returned an error.' };
         return null;
       }
 
       const data = await response.json();
       const rawText = data?.choices?.[0]?.message?.content;
-      return parseAndValidateLLMResponse(rawText);
+      const parsed = parseAndValidateLLMResponse(rawText);
+      if (!parsed) {
+        this.lastError = { type: 'MALFORMED_RESPONSE', message: 'The provider returned an unusable response.' };
+      }
+      return parsed;
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
         console.warn(`[LLMClient:${this.provider}] Request timed out after 15s.`);
+        this.lastError = { type: 'TIMEOUT', message: 'The provider request timed out.' };
       } else {
         console.warn(`[LLMClient:${this.provider}] Request error:`, err instanceof Error ? err.message : err);
+        this.lastError = { type: 'PROVIDER_UNAVAILABLE', message: 'The provider could not be reached.' };
       }
       return null;
     } finally {
@@ -223,19 +271,38 @@ ${req.claimB.rawSnippet}
       }
 
       if (!response.ok) {
+        if (response.status === 400 || response.status === 401 || response.status === 403) {
+          console.warn(`[LLMClient:gemini] HTTP ${response.status} Invalid API key.`);
+          this.lastError = { type: 'INVALID_API_KEY', message: 'API key was rejected by the provider.' };
+          this.apiKey = undefined; // Force immediate state unavailability
+          return null;
+        }
+        if (response.status === 404) {
+          console.warn(`[LLMClient:gemini] HTTP 404 Invalid model.`);
+          this.lastError = { type: 'INVALID_MODEL', message: 'The selected model is invalid or unavailable.' };
+          this.apiKey = undefined; // Force immediate state unavailability
+          return null;
+        }
         const errText = await response.text();
         console.warn(`[LLMClient:gemini] Gemini API HTTP ${response.status}: ${errText.slice(0, 200)}`);
+        this.lastError = { type: 'PROVIDER_UNAVAILABLE', message: 'The provider returned an error.' };
         return null;
       }
 
       const data = await response.json();
       const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      return parseAndValidateLLMResponse(rawText);
+      const parsed = parseAndValidateLLMResponse(rawText);
+      if (!parsed) {
+        this.lastError = { type: 'MALFORMED_RESPONSE', message: 'The provider returned an unusable response.' };
+      }
+      return parsed;
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') {
         console.warn(`[LLMClient:gemini] Request timed out after 15s.`);
+        this.lastError = { type: 'TIMEOUT', message: 'The provider request timed out.' };
       } else {
         console.warn(`[LLMClient:gemini] Request error:`, err instanceof Error ? err.message : err);
+        this.lastError = { type: 'PROVIDER_UNAVAILABLE', message: 'The provider could not be reached.' };
       }
       return null;
     } finally {
@@ -289,3 +356,74 @@ export function parseAndValidateLLMResponse(rawText: string | undefined | null):
     return null;
   }
 }
+
+export interface DiscoveredModel {
+  id: string;
+  name: string;
+}
+
+export interface DiscoveryResult {
+  status: 'SUCCESS' | 'INVALID_API_KEY' | 'RATE_LIMITED' | 'PROVIDER_UNAVAILABLE' | 'NO_COMPATIBLE_MODELS' | 'DISCOVERY_UNSUPPORTED';
+  models?: DiscoveredModel[];
+}
+
+export async function discoverProviderModels(provider: string, apiKey: string, baseURL?: string): Promise<DiscoveryResult> {
+  if (!apiKey) return { status: 'INVALID_API_KEY' };
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+  try {
+    if (provider === 'gemini') {
+      const base = baseURL || 'https://generativelanguage.googleapis.com/v1beta';
+      const res = await fetch(`${base}/models?key=${apiKey}`, { signal: controller.signal });
+      if (res.status === 400 || res.status === 401 || res.status === 403) return { status: 'INVALID_API_KEY' };
+      if (res.status === 429) return { status: 'RATE_LIMITED' };
+      if (!res.ok) return { status: 'PROVIDER_UNAVAILABLE' };
+      
+      const data = await res.json();
+      const models = (data.models || [])
+        .filter((m: any) => m.name.includes('gemini') && m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m: any) => ({
+          id: m.name.replace('models/', ''),
+          name: m.displayName || m.name.replace('models/', '')
+        }));
+        
+      if (!models.length) return { status: 'NO_COMPATIBLE_MODELS' };
+      return { status: 'SUCCESS', models };
+      
+    } else if (provider === 'openai' || provider === 'groq') {
+      const base = baseURL || (provider === 'openai' ? 'https://api.openai.com/v1' : 'https://api.groq.com/openai/v1');
+      const res = await fetch(`${base}/models`, {
+        headers: { 'Authorization': `Bearer ${apiKey}` },
+        signal: controller.signal
+      });
+      if (res.status === 401 || res.status === 403) return { status: 'INVALID_API_KEY' };
+      if (res.status === 429) return { status: 'RATE_LIMITED' };
+      if (!res.ok) return { status: 'PROVIDER_UNAVAILABLE' };
+      
+      const data = await res.json();
+      const models = (data.data || [])
+        .filter((m: any) => {
+          if (provider === 'openai') {
+            return m.id.includes('gpt') || m.id.includes('o1') || m.id.includes('o3');
+          }
+          return !m.id.includes('whisper'); // Filter out audio models for Groq
+        })
+        .map((m: any) => ({
+          id: m.id,
+          name: m.id
+        }));
+        
+      if (!models.length) return { status: 'NO_COMPATIBLE_MODELS' };
+      return { status: 'SUCCESS', models };
+    }
+    
+    return { status: 'DISCOVERY_UNSUPPORTED' };
+  } catch (err: any) {
+    if (err.name === 'AbortError') return { status: 'PROVIDER_UNAVAILABLE' };
+    return { status: 'PROVIDER_UNAVAILABLE' };
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+

@@ -3,7 +3,7 @@ import { extractArtifactInformation } from './extractor';
 import { produceRepositorySummary } from './summary';
 import { buildRepositoryContextGraph } from './graph';
 import { evaluateRepositoryContradictions, evaluateRepositoryContradictionsAsync } from './evaluator';
-import { LLMClient } from './llm/client';
+import { LLMClient, LLMProviderConfig } from './llm/client';
 import {
   NormalizedArtifact,
   RepositorySummary,
@@ -14,8 +14,8 @@ import {
   AnalysisPipelineResult,
 } from '../types/engine';
 
-export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<AnalysisPipelineResult> {
-  const llmClient = new LLMClient();
+export async function runFullAnalysisPipelineAsync(repoPath: string, llmConfig?: LLMProviderConfig): Promise<AnalysisPipelineResult> {
+  const llmClient = new LLMClient(llmConfig);
 
   // 1. Scan Repository
   const scanResult = scanRepository(repoPath);
@@ -32,7 +32,7 @@ export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<An
   const { graph, claims } = buildRepositoryContextGraph(scanResult.artifacts);
 
   // 5. Evaluate Contradictions (Async with LLM)
-  const findings = await evaluateRepositoryContradictionsAsync(scanResult.artifacts, claims);
+  const { findings, semanticMetrics } = await evaluateRepositoryContradictionsAsync(scanResult.artifacts, claims, llmClient);
 
   // 6. Enrich Graph
   enrichGraphWithFindings(graph, findings);
@@ -40,7 +40,9 @@ export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<An
   // 7. Calculate Repository Health Score (0 - 100)
   const healthScore = calculateHealthScore(findings);
 
-  const semanticStatus = llmClient.isAvailable() ? 'COMPLETED' : 'UNAVAILABLE';
+  const analysisMode = (semanticMetrics.status === 'COMPLETED' || semanticMetrics.status === 'RATE_LIMITED' || semanticMetrics.llmCallsMade > 0) 
+    ? 'HYBRID' 
+    : 'DETERMINISTIC_ONLY';
 
   return {
     scanResult,
@@ -50,9 +52,8 @@ export async function runFullAnalysisPipelineAsync(repoPath: string): Promise<An
     claims,
     findings,
     healthScore,
-    semanticStatus,
-    llmProvider: llmClient.getProviderName(),
-    llmModel: llmClient.getModelName(),
+    semanticAnalysis: semanticMetrics,
+    analysisMode
   };
 }
 
@@ -88,6 +89,7 @@ export function runFullAnalysisPipeline(repoPath: string): AnalysisPipelineResul
     claims,
     findings,
     healthScore,
+    analysisMode: 'DETERMINISTIC_ONLY'
   };
 }
 

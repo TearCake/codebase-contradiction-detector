@@ -39,3 +39,5 @@ aditya-session-1.md
 aditya-session-2.md
 aditya-session-3.md
 aditya-session-4.md
+*.tsbuildinfo
+dr/

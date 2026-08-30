@@ -20,8 +20,13 @@ import {
   AlertCircle,
   FolderGit2,
   Check,
+  Settings,
+  X,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { AnalysisPipelineResult } from '../types/engine';
+import { LLMProviderConfig } from '../engine/llm/client';
 
 function formatSubjectLabel(subject: string): string {
   if (!subject) return 'Domain Logic';
@@ -88,6 +93,83 @@ export default function Dashboard() {
   const [progressStage, setProgressStage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // AI Configuration State
+  const [showAiSettings, setShowAiSettings] = useState<boolean>(false);
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [llmConfig, setLlmConfig] = useState<LLMProviderConfig & { mechanism: 'environment' | 'custom' | 'deterministic' }>({
+    provider: 'groq',
+    apiKey: '',
+    model: '',
+    baseURL: '',
+    mechanism: 'environment',
+    deterministicOnly: false,
+  });
+  const [activeLlmConfig, setActiveLlmConfig] = useState<LLMProviderConfig | undefined>(undefined);
+
+  // Model Discovery State
+  const [isDiscovering, setIsDiscovering] = useState<boolean>(false);
+  const [discoveryStatus, setDiscoveryStatus] = useState<'IDLE' | 'SUCCESS' | 'INVALID_API_KEY' | 'RATE_LIMITED' | 'PROVIDER_UNAVAILABLE' | 'NO_COMPATIBLE_MODELS' | 'DISCOVERY_UNSUPPORTED'>('IDLE');
+  const [discoveredModels, setDiscoveredModels] = useState<{id: string, name: string}[]>([]);
+
+  const handleApplyAiSettings = () => {
+    if (llmConfig.mechanism === 'deterministic') {
+      setActiveLlmConfig({ deterministicOnly: true });
+    } else if (llmConfig.mechanism === 'custom') {
+      setActiveLlmConfig({ 
+        provider: llmConfig.provider, 
+        apiKey: llmConfig.apiKey, 
+        model: llmConfig.model, 
+        baseURL: llmConfig.baseURL 
+      });
+    } else {
+      // environment mechanism overrides any populated keys, mapping identically to 'undefined' custom config block
+      setActiveLlmConfig(undefined);
+    }
+    setShowAiSettings(false);
+  };
+
+  const handleClearAiSettings = () => {
+    setLlmConfig({ provider: 'groq', apiKey: '', model: '', baseURL: '', mechanism: 'environment', deterministicOnly: false });
+    setActiveLlmConfig(undefined);
+    setDiscoveryStatus('IDLE');
+    setDiscoveredModels([]);
+    setShowAiSettings(false);
+  };
+
+  const handleValidateKey = async () => {
+    if (!llmConfig.provider || !llmConfig.apiKey) return;
+    
+    setIsDiscovering(true);
+    setDiscoveryStatus('IDLE');
+    setDiscoveredModels([]);
+    // Clear previously selected model when changing keys/providers
+    setLlmConfig(prev => ({ ...prev, model: '' }));
+    
+    try {
+      const res = await fetch('/api/models', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: llmConfig.provider,
+          apiKey: llmConfig.apiKey,
+          baseURL: llmConfig.baseURL
+        }),
+      });
+      
+      const data = await res.json();
+      setDiscoveryStatus(data.status || 'PROVIDER_UNAVAILABLE');
+      if (data.models && data.models.length > 0) {
+        setDiscoveredModels(data.models);
+        // Auto-select first available model
+        setLlmConfig(prev => ({ ...prev, model: data.models[0].id }));
+      }
+    } catch (err) {
+      setDiscoveryStatus('PROVIDER_UNAVAILABLE');
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
   const runScan = async (sourceType: 'demo' | 'github', urlToScan?: string) => {
     setIsScanning(true);
     setErrorMessage(null);
@@ -115,6 +197,7 @@ export default function Dashboard() {
         body: JSON.stringify({
           source: sourceType,
           url: urlToScan,
+          llmConfig: activeLlmConfig
         }),
       });
 
@@ -185,14 +268,47 @@ export default function Dashboard() {
 
         <div className="flex items-center space-x-4">
           {analysis && (
-            <div className="hidden sm:flex items-center space-x-2 text-xs font-mono px-3 py-1.5 rounded-lg border bg-slate-900 border-slate-800">
-              <Brain className="w-3.5 h-3.5 text-sky-400" />
-              <span className="text-slate-400">Semantic Engine:</span>
-              <span className={analysis.semanticStatus === 'COMPLETED' ? 'text-emerald-400 font-semibold' : 'text-amber-400 font-semibold'}>
-                {analysis.semanticStatus === 'COMPLETED' ? '✓ Completed' : analysis.semanticStatus === 'RATE_LIMITED' ? '⚠ Rate Limited' : '⚠ Unavailable'}
-              </span>
+            <div className="hidden sm:flex flex-col text-xs font-mono px-3 py-1.5 rounded-lg border bg-slate-900 border-slate-800">
+              <div className="flex items-center space-x-2">
+                <Brain className="w-3.5 h-3.5 text-sky-400" />
+                <span className="text-slate-400">Mode:</span>
+                <span className={analysis.analysisMode === 'HYBRID' ? 'text-sky-400 font-semibold' : 'text-slate-300 font-semibold'}>
+                  {analysis.analysisMode === 'HYBRID' ? 'HYBRID' : 'DETERMINISTIC ONLY'}
+                </span>
+              </div>
+              
+              {analysis.semanticAnalysis && (
+                <div className="mt-1 pt-1 border-t border-slate-800 flex items-center justify-between space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-slate-500">AI Status:</span>
+                    <span className={
+                      analysis.semanticAnalysis.status === 'COMPLETED' ? 'text-emerald-400' :
+                      analysis.semanticAnalysis.status === 'RATE_LIMITED' ? 'text-amber-400' :
+                      'text-rose-400'
+                    }>
+                      {analysis.semanticAnalysis.status === 'COMPLETED' ? '✓ Completed' : 
+                       analysis.semanticAnalysis.status === 'RATE_LIMITED' ? '⚠ Rate Limited' : 
+                       '⚠ Unavailable'}
+                    </span>
+                  </div>
+                  {analysis.semanticAnalysis.provider && (
+                    <div className="flex space-x-2 text-slate-500">
+                      <span>[{analysis.semanticAnalysis.provider} / {analysis.semanticAnalysis.model}]</span>
+                      <span>Calls: {analysis.semanticAnalysis.llmCallsMade}</span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
+
+          <button
+            onClick={() => setShowAiSettings(true)}
+            className="flex items-center space-x-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold px-3.5 py-1.5 rounded-lg text-xs transition-all"
+          >
+            <Settings className="w-3.5 h-3.5 text-slate-400" />
+            <span>AI Settings {activeLlmConfig ? '(Custom)' : ''}</span>
+          </button>
 
           <button
             onClick={handleScanDemo}
@@ -376,9 +492,212 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* AI Settings Modal */}
+      {showAiSettings && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-xl max-w-md w-full shadow-2xl shadow-sky-900/20">
+            <div className="flex items-center justify-between p-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-slate-100 flex items-center gap-2">
+                <Settings className="w-5 h-5 text-sky-400" />
+                Custom AI Configuration
+              </h2>
+              <button
+                onClick={() => setShowAiSettings(false)}
+                className="text-slate-400 hover:text-slate-200 transition-colors p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4 text-sm">
+              <p className="text-slate-400 text-xs mb-4">
+                Leave these blank to use the server's default environment variables. Configuration is only stored in memory during your session.
+              </p>
+
+              <div className={`space-y-1.5 ${llmConfig.mechanism !== 'custom' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Provider</label>
+                <select
+                  value={llmConfig.provider || 'groq'}
+                  onChange={(e) => {
+                    setLlmConfig({ ...llmConfig, provider: e.target.value as 'groq' | 'openai' | 'gemini', model: '' });
+                    setDiscoveryStatus('IDLE');
+                    setDiscoveredModels([]);
+                  }}
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/30"
+                >
+                  <option value="groq">Groq</option>
+                  <option value="openai">OpenAI</option>
+                  <option value="gemini">Gemini</option>
+                </select>
+              </div>
+
+              <div className={`space-y-1.5 ${llmConfig.mechanism !== 'custom' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Base URL (Optional)</label>
+                <input
+                  type="text"
+                  value={llmConfig.baseURL || ''}
+                  onChange={(e) => {
+                    setLlmConfig({ ...llmConfig, baseURL: e.target.value, model: '' });
+                    setDiscoveryStatus('IDLE');
+                    setDiscoveredModels([]);
+                  }}
+                  placeholder="Custom endpoint URL"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/30 font-mono text-sm"
+                />
+              </div>
+
+              <div className={`space-y-1.5 ${llmConfig.mechanism !== 'custom' ? 'opacity-50 pointer-events-none' : ''}`}>
+                <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">API Key</label>
+                <div className="relative">
+                  <input
+                    type={showApiKey ? "text" : "password"}
+                    value={llmConfig.apiKey || ''}
+                    onChange={(e) => {
+                      setLlmConfig({ ...llmConfig, apiKey: e.target.value, model: '' });
+                      setDiscoveryStatus('IDLE');
+                      setDiscoveredModels([]);
+                    }}
+                    placeholder={`Enter ${llmConfig.provider || 'Groq'} API Key`}
+                    className="w-full pl-3 pr-24 py-2 bg-slate-950 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-600 focus:outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/30 font-mono text-sm"
+                  />
+                  <div className="absolute inset-y-0 right-0 flex items-center pr-2 space-x-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="p-1 text-slate-500 hover:text-slate-300"
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                    {llmConfig.apiKey && (
+                      <button
+                        type="button"
+                        onClick={handleValidateKey}
+                        disabled={isDiscovering}
+                        className="px-2 py-1 bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 rounded text-xs font-semibold border border-sky-500/20 disabled:opacity-50"
+                      >
+                        {isDiscovering ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : 'Validate'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                
+                {/* Validation Status Message */}
+                {discoveryStatus === 'INVALID_API_KEY' && (
+                  <p className="text-xs text-rose-400 mt-1 flex items-center gap-1"><X className="w-3 h-3"/> Invalid API key.</p>
+                )}
+                {discoveryStatus === 'RATE_LIMITED' && (
+                  <p className="text-xs text-amber-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Rate limit reached. Try again later.</p>
+                )}
+                {discoveryStatus === 'PROVIDER_UNAVAILABLE' && (
+                  <p className="text-xs text-rose-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Provider is currently unavailable.</p>
+                )}
+                {discoveryStatus === 'NO_COMPATIBLE_MODELS' && (
+                  <p className="text-xs text-amber-400 mt-1 flex items-center gap-1"><AlertTriangle className="w-3 h-3"/> Valid key, but no semantic models found.</p>
+                )}
+                {discoveryStatus === 'SUCCESS' && (
+                  <p className="text-xs text-emerald-400 mt-1 flex items-center gap-1"><Check className="w-3 h-3"/> Key valid. {discoveredModels.length} models discovered.</p>
+                )}
+              </div>
+
+              <div className="pt-4 mt-2 border-t border-slate-800 space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">Analysis Mechanism</label>
+                  <select
+                    value={llmConfig.mechanism}
+                    onChange={(e) => {
+                      const mechanism = e.target.value as 'environment' | 'custom' | 'deterministic';
+                      setLlmConfig({ ...llmConfig, mechanism, deterministicOnly: mechanism === 'deterministic' });
+                    }}
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/30 font-mono text-sm"
+                  >
+                    <option value="environment">Default Credentials (Environment)</option>
+                    <option value="custom">AI / Semantic Analysis (Custom)</option>
+                    <option value="deterministic">Deterministic Analysis</option>
+                  </select>
+                </div>
+
+                {llmConfig.mechanism === 'environment' && (
+                  <div className="p-3 bg-sky-500/10 border border-sky-500/20 rounded-lg text-sky-400 text-xs">
+                    Uses the LLM credentials pre-configured in the server environment (e.g. process.env). No custom inputs are required.
+                  </div>
+                )}
+
+                {llmConfig.mechanism === 'custom' && (
+                  <>
+                    {discoveryStatus === 'SUCCESS' && discoveredModels.length > 0 ? (
+                      <div className="space-y-1.5 bg-slate-950/50 p-3 rounded-lg border border-emerald-500/20">
+                        <label className="block text-xs font-semibold text-emerald-400 uppercase tracking-wider">Default Model</label>
+                        <select
+                          value={llmConfig.model || ''}
+                          onChange={(e) => setLlmConfig({ ...llmConfig, model: e.target.value })}
+                          className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-slate-200 focus:outline-none focus:border-sky-500/60 focus:ring-1 focus:ring-sky-500/30 font-mono text-sm"
+                        >
+                          {discoveredModels.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 opacity-50">
+                        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">Default Model</label>
+                        <input
+                          type="text"
+                          disabled
+                          value={llmConfig.model || ''}
+                          placeholder="Requires successful validation"
+                          className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-500 font-mono text-sm cursor-not-allowed"
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between p-4 border-t border-slate-800 bg-slate-900/50 rounded-b-xl">
+              <button
+                onClick={handleClearAiSettings}
+                className="text-xs font-semibold text-rose-400 hover:text-rose-300 px-3 py-1.5 transition-colors"
+              >
+                Clear Custom Config
+              </button>
+              <div className="flex space-x-2">
+                <button
+                  onClick={() => setShowAiSettings(false)}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-colors border border-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleApplyAiSettings}
+                  disabled={llmConfig.mechanism === 'custom' && (!!llmConfig.apiKey && !llmConfig.model)}
+                  className="px-4 py-2 bg-sky-500 hover:bg-sky-400 text-slate-950 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Apply Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Dashboard Layout */}
       {analysis && (
         <div className="flex-1 flex flex-col max-w-[1600px] w-full mx-auto p-6 space-y-6">
+
+          {/* Analysis Status Alert if needed */}
+          {analysis && analysis.semanticAnalysis && analysis.semanticAnalysis.status !== 'COMPLETED' && analysis.semanticAnalysis.status !== 'NOT_CONFIGURED' && (
+            <div className="px-4 py-3 rounded-lg border border-amber-500/30 bg-amber-500/10 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-400 mt-0.5 shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-amber-400 mb-1">AI Analysis {analysis.semanticAnalysis.status === 'RATE_LIMITED' ? 'Stopped' : 'Unavailable'}</h3>
+                <p className="text-xs text-amber-200/80">
+                  {analysis.semanticAnalysis.reason || 'Semantic analysis could not complete. The scan finished using the deterministic engine.'}
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Header Stats Bar */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Health Score Card */}

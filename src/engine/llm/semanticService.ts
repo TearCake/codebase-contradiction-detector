@@ -1,39 +1,58 @@
-import { NormalizedArtifact, ExtractedClaim, ContradictionFinding } from '../../types/engine';
+import { NormalizedArtifact, ExtractedClaim, ContradictionFinding, SemanticAnalysisMetrics, LLMExecutionStatus } from '../../types/engine';
 import { LLMClient, LLMComparisonResponse } from './client';
 import { generateCandidatePairs } from './candidateMatcher';
 import { verifyPairEvidence } from './evidenceVerifier';
 
 export interface SemanticAnalysisResult {
   findings: ContradictionFinding[];
-  candidatePairsEvaluated: number;
-  llmCallsMade: number;
-  contradictionsProposed: number;
-  acceptedAfterVerification: number;
-  duplicatesRemoved: number;
-  llmAvailable: boolean;
+  metrics: SemanticAnalysisMetrics;
 }
 
 export async function evaluateSemanticContradictions(
   artifacts: NormalizedArtifact[],
   claims: ExtractedClaim[],
-  options?: { client?: LLMClient; maxPairs?: number }
+  client: LLMClient,
+  maxPairs: number = 25
 ): Promise<SemanticAnalysisResult> {
-  const client = options?.client || new LLMClient();
   const llmAvailable = client.isAvailable();
+  
+  const metrics: SemanticAnalysisMetrics = {
+    status: 'READY',
+    provider: client.getProviderName(),
+    model: client.getModelName(),
+    llmCallsMade: 0,
+    candidatePairsEvaluated: 0,
+    contradictionsProposed: 0,
+  };
 
-  const candidatePairs = generateCandidatePairs(claims, options?.maxPairs || 25);
+  const candidatePairs = generateCandidatePairs(claims, maxPairs);
+  metrics.candidatePairsEvaluated = candidatePairs.length;
 
-  let llmCallsMade = 0;
-  let contradictionsProposed = 0;
-  let acceptedAfterVerification = 0;
-  let duplicatesRemoved = 0;
+  if (!llmAvailable) {
+    const lastErr = client.getLastError();
+    if (lastErr) {
+      metrics.status = lastErr.type as LLMExecutionStatus;
+      metrics.reason = lastErr.message;
+    } else {
+      metrics.status = 'NOT_CONFIGURED';
+      metrics.reason = 'No API key configured.';
+    }
+    return { findings: [], metrics };
+  }
 
   const rawFindings: ContradictionFinding[] = [];
 
   for (const pair of candidatePairs) {
-    if (!llmAvailable) break;
+    if (!client.isAvailable()) {
+      const lastErr = client.getLastError();
+      if (lastErr) {
+        metrics.status = lastErr.type as LLMExecutionStatus;
+        metrics.reason = lastErr.message;
+      }
+      break;
+    }
 
-    llmCallsMade++;
+    metrics.llmCallsMade++;
     const llmRes: LLMComparisonResponse | null = await client.compareClaims({
       claimA: {
         sourceType: pair.claimA.sourceType,
@@ -55,7 +74,7 @@ export async function evaluateSemanticContradictions(
       continue;
     }
 
-    contradictionsProposed++;
+    metrics.contradictionsProposed++;
 
     // Evidence Verification
     const isVerified = verifyPairEvidence(artifacts, pair.claimA, pair.claimB);
@@ -63,8 +82,6 @@ export async function evaluateSemanticContradictions(
       console.warn(`[SemanticService] Evidence verification failed for pair ${pair.claimA.id} ↔ ${pair.claimB.id}`);
       continue;
     }
-
-    acceptedAfterVerification++;
 
     // Determine Probabilistic Source of Truth
     const sourceOfTruth = calculateLikelyAuthoritativeSource(pair.claimA, pair.claimB, llmRes.suggestedAuthoritativeSource);
@@ -78,8 +95,6 @@ export async function evaluateSemanticContradictions(
       severity = 'CRITICAL';
     } else if (llmRes.category === 'TESTING') {
       severity = 'MEDIUM';
-    } else {
-      severity = 'HIGH';
     }
 
     rawFindings.push({
@@ -100,16 +115,14 @@ export async function evaluateSemanticContradictions(
 
   // Deduplicate and Cluster Multi-Source Discrepancies
   const clusteredFindings = clusterAndDeduplicateFindings(rawFindings);
-  duplicatesRemoved = rawFindings.length - clusteredFindings.length;
+  
+  if (metrics.status === 'READY') {
+    metrics.status = 'COMPLETED';
+  }
 
   return {
     findings: clusteredFindings,
-    candidatePairsEvaluated: candidatePairs.length,
-    llmCallsMade,
-    contradictionsProposed,
-    acceptedAfterVerification,
-    duplicatesRemoved,
-    llmAvailable,
+    metrics
   };
 }
 

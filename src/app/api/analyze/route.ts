@@ -51,11 +51,27 @@ export async function POST(req: NextRequest) {
   }
 
   const source = body.source || 'demo';
+  const llmConfig = body.llmConfig;
+
+  // Basic validation of llmConfig if provided
+  if (llmConfig && !llmConfig.deterministicOnly) {
+    if (llmConfig.provider && !['groq', 'openai', 'gemini'].includes(llmConfig.provider)) {
+      return NextResponse.json({ error: 'Invalid LLM provider specified.' }, { status: 400 });
+    }
+    if (llmConfig.baseURL) {
+      try {
+        new URL(llmConfig.baseURL);
+      } catch {
+        return NextResponse.json({ error: 'Invalid baseURL format.' }, { status: 400 });
+      }
+    }
+    // Do not log the config to avoid leaking API keys
+  }
 
   if (source === 'demo') {
     try {
       const repoPath = path.resolve(process.cwd(), 'demo-repo');
-      const result = await runFullAnalysisPipelineAsync(repoPath);
+      const result = await runFullAnalysisPipelineAsync(repoPath, llmConfig);
 
       result.repositoryInfo = {
         source: 'demo',
@@ -97,7 +113,7 @@ export async function POST(req: NextRequest) {
     const { tempDir, owner, repo, canonicalUrl, extractedFileCount } = downloadRes;
 
     try {
-      const result = await runFullAnalysisPipelineAsync(tempDir);
+      const result = await runFullAnalysisPipelineAsync(tempDir, llmConfig);
 
       result.repositoryInfo = {
         source: 'github',

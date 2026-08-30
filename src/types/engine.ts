@@ -201,6 +201,30 @@ export interface RepositoryInfo {
   artifactCount: number;
 }
 
+export type LLMExecutionStatus = 
+  | 'NOT_CONFIGURED'
+  | 'READY'
+  | 'COMPLETED'
+  | 'RATE_LIMITED'
+  | 'INVALID_API_KEY'
+  | 'INVALID_MODEL'
+  | 'PROVIDER_UNAVAILABLE'
+  | 'TIMEOUT'
+  | 'MALFORMED_RESPONSE'
+  | 'NO_COMPATIBLE_MODEL'
+  | 'DISCOVERY_UNSUPPORTED'
+  | 'UNKNOWN_ERROR';
+
+export interface SemanticAnalysisMetrics {
+  status: LLMExecutionStatus;
+  provider?: string;
+  model?: string;
+  llmCallsMade: number;
+  candidatePairsEvaluated: number;
+  contradictionsProposed: number;
+  reason?: string;
+}
+
 export interface AnalysisPipelineResult {
   scanResult: any;
   artifacts: NormalizedArtifact[];
@@ -209,10 +233,9 @@ export interface AnalysisPipelineResult {
   claims: ExtractedClaim[];
   findings: ContradictionFinding[];
   healthScore: number;
-  semanticStatus?: 'COMPLETED' | 'RATE_LIMITED' | 'UNAVAILABLE';
-  llmProvider?: string;
-  llmModel?: string;
+  semanticAnalysis?: SemanticAnalysisMetrics;
   repositoryInfo?: RepositoryInfo;
+  analysisMode: 'DETERMINISTIC_ONLY' | 'HYBRID';
 }
 
 // Retained for legacy/backward compatibility
